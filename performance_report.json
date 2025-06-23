@@ -1,0 +1,21 @@
+{
+  "timestamp": "2025-06-16 11:56:04",
+  "initial_memory_mb": 21.78125,
+  "final_memory_mb": 107.90625,
+  "memory_growth_mb": 86.125,
+  "api_response_time_ms": 9.39319133758545,
+  "concurrent_response_time_ms": 18.850088119506836,
+  "memory_stats": {
+    "min_memory": 50.296875,
+    "max_memory": 51.8125,
+    "avg_memory": 51.31302083333333,
+    "samples": 30
+  },
+  "detection_task": {
+    "success": true,
+    "duration": 0.009393930435180664,
+    "memory_before": 50.296875,
+    "memory_after": 108.75,
+    "memory_increase": 58.453125
+  }
+}

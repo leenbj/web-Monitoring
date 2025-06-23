@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>前端测试页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 网址监控工具 - 前端测试页面</h1>
+        
+        <div class="status info">
+            <strong>测试目的：</strong>排查前端页面无法打开的问题
+        </div>
+
+        <h2>📋 测试项目</h2>
+        
+        <div id="test-results">
+            <div class="status" id="html-status">
+                ✅ HTML 页面正常加载
+            </div>
+            
+            <div class="status" id="js-status">
+                🔄 JavaScript 正在测试...
+            </div>
+            
+            <div class="status" id="api-status">
+                🔄 API 连接测试中...
+            </div>
+        </div>
+
+        <h2>🔗 快速访问</h2>
+        <button onclick="window.open('http://localhost:3000', '_blank')">打开Vue应用</button>
+        <button onclick="window.open('http://localhost:5001/api/websites/', '_blank')">测试后端API</button>
+        <button onclick="testAPI()">测试API连接</button>
+        <button onclick="location.reload()">重新加载测试</button>
+
+        <h2>📝 故障排查步骤</h2>
+        <ol>
+            <li><strong>检查服务状态：</strong>
+                <ul>
+                    <li>前端服务：<code>http://localhost:3000</code></li>
+                    <li>后端服务：<code>http://localhost:5001</code></li>
+                </ul>
+            </li>
+            <li><strong>查看浏览器控制台：</strong>按F12打开开发者工具查看错误信息</li>
+            <li><strong>检查网络请求：</strong>在Network面板查看失败的请求</li>
+            <li><strong>验证依赖：</strong>确认npm依赖安装完整</li>
+        </ol>
+
+        <h2>🚀 启动命令</h2>
+        <pre style="background: #f8f9fa; padding: 15px; border-radius: 4px;">
+# 启动后端
+cd /Users/wangbo/Desktop/代码项目/网址监控
+python run_backend.py
+
+# 启动前端
+cd frontend
+npm run dev
+        </pre>
+
+        <div id="error-log" style="margin-top: 20px;"></div>
+    </div>
+
+    <script>
+        // JavaScript 测试
+        document.addEventListener('DOMContentLoaded', function() {
+            const jsStatus = document.getElementById('js-status');
+            jsStatus.textContent = '✅ JavaScript 运行正常';
+            jsStatus.className = 'status success';
+
+            // 自动测试API
+            setTimeout(testAPI, 1000);
+        });
+
+        async function testAPI() {
+            const apiStatus = document.getElementById('api-status');
+            const errorLog = document.getElementById('error-log');
+            
+            try {
+                apiStatus.textContent = '🔄 正在测试API连接...';
+                apiStatus.className = 'status info';
+
+                const response = await fetch('http://localhost:5001/api/websites/');
+                
+                if (response.ok) {
+                    apiStatus.textContent = '✅ 后端API连接正常';
+                    apiStatus.className = 'status success';
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+            } catch (error) {
+                apiStatus.textContent = '❌ 后端API连接失败: ' + error.message;
+                apiStatus.className = 'status error';
+                
+                errorLog.innerHTML = `
+                    <div class="status error">
+                        <strong>错误详情：</strong><br>
+                        ${error.message}<br>
+                        <small>请确保后端服务正在运行在 http://localhost:5001</small>
+                    </div>
+                `;
+            }
+        }
+
+        // 错误捕获
+        window.addEventListener('error', function(e) {
+            const errorLog = document.getElementById('error-log');
+            errorLog.innerHTML += `
+                <div class="status error">
+                    <strong>JavaScript错误：</strong><br>
+                    ${e.message}<br>
+                    <small>文件: ${e.filename}:${e.lineno}</small>
+                </div>
+            `;
+        });
+    </script>
+</body>
+</html> 
