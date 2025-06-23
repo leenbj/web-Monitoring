@@ -1,0 +1,258 @@
+/* 黑白主题色彩系统 - 关键模块强调色 */
+:root {
+  /* 主色调: 黑白灰 */
+  --claude-black: #000000;
+  --claude-dark: #1a1a1a;
+  --claude-gray-dark: #2d2d2d;
+  --claude-gray: #6b7280;
+  --claude-gray-light: #9ca3af;
+  --claude-gray-lighter: #d1d5db;
+  --claude-gray-lightest: #f3f4f6;
+  --claude-white: #ffffff;
+  --claude-off-white: #fafafa;
+
+  /* 关键模块强调色 */
+  --claude-accent-green: #10b981;    /* 成功/正常状态 */
+  --claude-accent-blue: #3b82f6;     /* 信息/统计数据 */
+  --claude-accent-amber: #f59e0b;    /* 警告/跳转状态 */
+  --claude-accent-red: #ef4444;      /* 错误/失败状态 */
+  
+  /* 强调色的浅色版本 */
+  --claude-accent-green-light: #d1fae5;
+  --claude-accent-blue-light: #dbeafe;
+  --claude-accent-amber-light: #fef3c7;
+  --claude-accent-red-light: #fee2e2;
+
+  /* 主要元素色彩映射 */
+  --claude-primary: var(--claude-dark);
+  --claude-primary-light: var(--claude-gray-dark);
+  --claude-primary-lighter: var(--claude-gray-lightest);
+  --claude-primary-dark: var(--claude-black);
+  --claude-primary-darker: var(--claude-black);
+
+  /* 辅助元素色彩映射 */
+  --claude-secondary: var(--claude-gray);
+  --claude-secondary-light: var(--claude-gray-light);
+  --claude-secondary-lighter: var(--claude-off-white);
+  --claude-secondary-dark: var(--claude-gray-dark);
+  --claude-secondary-darker: var(--claude-dark);
+
+  /* 背景和边框色彩映射 */
+  --claude-tertiary: var(--claude-gray-lighter);
+  --claude-tertiary-light: var(--claude-gray-lightest);
+  --claude-tertiary-lighter: var(--claude-off-white);
+  --claude-tertiary-dark: var(--claude-gray-light);
+  --claude-tertiary-darker: var(--claude-gray);
+
+  /* 语义色彩 - 使用强调色 */
+  --claude-success: var(--claude-accent-green);
+  --claude-success-light: var(--claude-accent-green);
+  --claude-success-lighter: var(--claude-accent-green-light);
+  --claude-warning: var(--claude-accent-amber);
+  --claude-warning-light: var(--claude-accent-amber);
+  --claude-warning-lighter: var(--claude-accent-amber-light);
+  --claude-danger: var(--claude-accent-red);
+  --claude-danger-light: var(--claude-accent-red);
+  --claude-danger-lighter: var(--claude-accent-red-light);
+  --claude-info: var(--claude-accent-blue);
+  --claude-info-light: var(--claude-accent-blue);
+  --claude-info-lighter: var(--claude-accent-blue-light);
+
+  /* 背景色彩 - 黑白主题 */
+  --claude-bg-page: var(--claude-off-white);
+  --claude-bg-card: var(--claude-white);
+  --claude-bg-hover: var(--claude-gray-lightest);
+  --claude-bg-active: var(--claude-gray-lighter);
+
+  /* 边框色彩 - 黑白主题 */
+  --claude-border-light: var(--claude-gray-lightest);
+  --claude-border-normal: var(--claude-gray-lighter);
+  --claude-border-dark: var(--claude-gray-light);
+
+  /* 文字色彩 - 黑白主题 */
+  --claude-text-primary: var(--claude-black);
+  --claude-text-secondary: var(--claude-dark);
+  --claude-text-tertiary: var(--claude-gray);
+  --claude-text-quaternary: var(--claude-gray-light);
+  --claude-text-disabled: var(--claude-gray-lighter);
+
+  /* 阴影 */
+  --claude-shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --claude-shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  --claude-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --claude-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+
+  /* 圆角 */
+  --claude-radius-xs: 4px;
+  --claude-radius-sm: 6px;
+  --claude-radius-md: 8px;
+  --claude-radius-lg: 12px;
+  --claude-radius-xl: 16px;
+
+  /* 字体 */
+  --claude-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --claude-font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+
+  /* 字体大小 */
+  --claude-text-xs: 12px;
+  --claude-text-sm: 14px;
+  --claude-text-base: 16px;
+  --claude-text-lg: 18px;
+  --claude-text-xl: 20px;
+  --claude-text-2xl: 24px;
+  --claude-text-3xl: 30px;
+  --claude-text-4xl: 36px;
+
+  /* 字体粗细 */
+  --claude-font-normal: 400;
+  --claude-font-medium: 500;
+  --claude-font-semibold: 600;
+  --claude-font-bold: 700;
+
+  /* 行高 */
+  --claude-leading-tight: 1.25;
+  --claude-leading-snug: 1.375;
+  --claude-leading-normal: 1.5;
+  --claude-leading-relaxed: 1.625;
+
+  /* 间距 */
+  --claude-space-1: 4px;
+  --claude-space-2: 8px;
+  --claude-space-3: 12px;
+  --claude-space-4: 16px;
+  --claude-space-5: 20px;
+  --claude-space-6: 24px;
+  --claude-space-8: 32px;
+  --claude-space-10: 40px;
+  --claude-space-12: 48px;
+  --claude-space-16: 64px;
+  --claude-space-20: 80px;
+
+  /* 过渡动画 */
+  --claude-transition-fast: 0.15s ease;
+  --claude-transition-normal: 0.3s ease;
+  --claude-transition-slow: 0.5s ease;
+}
+
+/* 全局字体样式 */
+body {
+  font-family: var(--claude-font-family);
+  font-size: var(--claude-text-base);
+  line-height: var(--claude-leading-normal);
+  color: var(--claude-text-primary);
+  background-color: var(--claude-bg-page);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 标题样式层次 */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--claude-font-family);
+  font-weight: var(--claude-font-semibold);
+  line-height: var(--claude-leading-tight);
+  letter-spacing: -0.025em;
+  color: var(--claude-text-primary);
+  margin: 0;
+}
+
+h1 { font-size: var(--claude-text-4xl); }
+h2 { font-size: var(--claude-text-3xl); }
+h3 { font-size: var(--claude-text-2xl); }
+h4 { font-size: var(--claude-text-xl); }
+h5 { font-size: var(--claude-text-lg); }
+h6 { font-size: var(--claude-text-base); }
+
+/* Claude风格按钮基础样式 */
+.claude-btn {
+  font-family: var(--claude-font-family);
+  font-weight: var(--claude-font-medium);
+  border-radius: var(--claude-radius-md);
+  transition: all var(--claude-transition-fast);
+  border: 1px solid transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--claude-space-2);
+  text-decoration: none;
+  outline: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.claude-btn:focus {
+  outline: 2px solid var(--claude-primary);
+  outline-offset: 2px;
+}
+
+.claude-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--claude-shadow-md);
+}
+
+.claude-btn:active {
+  transform: translateY(0);
+}
+
+/* Claude风格卡片样式 */
+.claude-card {
+  background: var(--claude-bg-card);
+  border: 1px solid var(--claude-border-normal);
+  border-radius: var(--claude-radius-lg);
+  box-shadow: var(--claude-shadow-sm);
+  transition: all var(--claude-transition-fast);
+  overflow: hidden;
+}
+
+.claude-card:hover {
+  border-color: var(--claude-border-dark);
+  box-shadow: var(--claude-shadow-md);
+}
+
+/* Claude风格输入框样式 */
+.claude-input {
+  font-family: var(--claude-font-family);
+  font-size: var(--claude-text-sm);
+  border: 1px solid var(--claude-border-normal);
+  border-radius: var(--claude-radius-md);
+  padding: var(--claude-space-3);
+  background: var(--claude-bg-card);
+  color: var(--claude-text-primary);
+  transition: all var(--claude-transition-fast);
+  outline: none;
+}
+
+.claude-input:hover {
+  border-color: var(--claude-border-dark);
+}
+
+.claude-input:focus {
+  border-color: var(--claude-primary);
+  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.1);
+}
+
+.claude-input::placeholder {
+  color: var(--claude-text-quaternary);
+}
+
+/* 辅助类 */
+.claude-text-primary { color: var(--claude-text-primary); }
+.claude-text-secondary { color: var(--claude-text-secondary); }
+.claude-text-tertiary { color: var(--claude-text-tertiary); }
+.claude-text-quaternary { color: var(--claude-text-quaternary); }
+
+.claude-bg-primary { background-color: var(--claude-primary); }
+.claude-bg-page { background-color: var(--claude-bg-page); }
+.claude-bg-card { background-color: var(--claude-bg-card); }
+
+.claude-border { border: 1px solid var(--claude-border-normal); }
+.claude-border-light { border: 1px solid var(--claude-border-light); }
+.claude-border-dark { border: 1px solid var(--claude-border-dark); }
+
+.claude-shadow-sm { box-shadow: var(--claude-shadow-sm); }
+.claude-shadow-md { box-shadow: var(--claude-shadow-md); }
+.claude-shadow-lg { box-shadow: var(--claude-shadow-lg); }
+
+.claude-rounded { border-radius: var(--claude-radius-md); }
+.claude-rounded-lg { border-radius: var(--claude-radius-lg); }
+.claude-rounded-xl { border-radius: var(--claude-radius-xl); }

@@ -1,0 +1,26 @@
+{
+  "name": "website-monitor-frontend",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": ["website-monitor", "vue", "element-plus"],
+  "author": "",
+  "license": "MIT",
+  "description": "网址监控工具前端界面",
+  "dependencies": {
+    "vue": "^3.4.0",
+    "vue-router": "^4.2.0",
+    "axios": "^1.6.0",
+    "element-plus": "^2.4.0",
+    "@element-plus/icons-vue": "^2.3.0"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0",
+    "@vitejs/plugin-vue": "^5.0.0"
+  }
+}

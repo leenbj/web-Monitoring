@@ -1,0 +1,39 @@
+# Flask Web框架和相关扩展
+Flask==2.3.3
+Flask-SQLAlchemy==3.0.5
+Flask-CORS==4.0.0
+Flask-Mail==0.9.1
+
+# 数据库相关
+SQLAlchemy>=2.0.30
+
+# 定时任务调度
+APScheduler==3.10.4
+
+# HTTP请求和网页解析
+requests==2.31.0
+beautifulsoup4==4.12.2
+urllib3==2.0.4
+
+# 异步HTTP请求
+aiohttp==3.9.1
+aiofiles==23.2.0
+
+# 系统监控和性能优化
+psutil==5.9.6
+
+# 文件处理
+pandas>=2.2.0
+openpyxl==3.1.2
+
+# 日期时间处理
+python-dateutil==2.8.2
+
+# 数据验证
+marshmallow==3.20.1
+
+# 环境变量管理
+python-dotenv==1.0.0
+
+# 字符编码检测
+chardet==5.2.0 
