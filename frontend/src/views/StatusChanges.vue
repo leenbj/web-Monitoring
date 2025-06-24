@@ -1481,8 +1481,8 @@ export default {
 }
 
 .website-selection :deep(.el-transfer-panel__item) {
-  padding: 10px 14px !important;
-  margin: 2px 6px !important;
+  padding: 10px 12px !important;
+  margin: 2px 4px !important;
   border-radius: 6px;
   transition: all 0.2s ease;
   font-size: 13px;
@@ -1490,7 +1490,10 @@ export default {
   align-items: center !important;
   line-height: 1.4;
   min-height: 32px !important;
-  gap: 10px !important;
+  gap: 0 !important;
+  position: relative !important;
+  width: calc(100% - 8px) !important;
+  box-sizing: border-box !important;
 }
 
 .website-selection :deep(.el-transfer-panel__item:hover) {
@@ -1510,32 +1513,59 @@ export default {
   align-items: center !important;
   flex: 1 !important;
   width: 100% !important;
+  gap: 10px !important;
+  line-height: 1 !important;
 }
 
 .website-selection :deep(.el-transfer-panel__item .el-checkbox__input) {
   display: flex !important;
   align-items: center !important;
-  margin-right: 0 !important;
+  justify-content: center !important;
+  margin: 0 !important;
   flex-shrink: 0 !important;
   width: 16px !important;
   height: 16px !important;
+  position: relative !important;
+  vertical-align: middle !important;
 }
 
 .website-selection :deep(.el-transfer-panel__item .el-checkbox__inner) {
   margin: 0 !important;
   width: 14px !important;
   height: 14px !important;
+  position: relative !important;
+  z-index: 1 !important;
+  vertical-align: middle !important;
 }
 
 .website-selection :deep(.el-transfer-panel__item .el-checkbox__label) {
-  display: block !important;
+  display: flex !important;
+  align-items: center !important;
   line-height: 1.4 !important;
   font-size: 13px !important;
   margin: 0 !important;
-  padding: 0 0 0 8px !important;
+  padding: 0 !important;
   flex: 1 !important;
   word-break: break-word !important;
   overflow-wrap: break-word !important;
+  min-width: 0 !important;
+  overflow: visible !important;
+  text-align: left !important;
+  width: auto !important;
+  vertical-align: middle !important;
+}
+
+/* 确保复选框和文本不重叠的额外样式 */
+.website-selection :deep(.el-transfer-panel__item .el-checkbox__original) {
+  position: absolute !important;
+  opacity: 0 !important;
+  outline: none !important;
+  z-index: -1 !important;
+}
+
+/* 确保整体布局对齐 */
+.website-selection :deep(.el-transfer-panel__list) {
+  padding: 8px 4px !important;
 }
 
 .website-selection :deep(.el-transfer__buttons) {
