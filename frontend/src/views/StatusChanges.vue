@@ -324,7 +324,7 @@
                 v-model="editTaskForm.website_ids"
                 :data="availableWebsites"
                 :titles="['可选网站', '监控网站']"
-                :button-texts="['添加 →', '← 移除']"
+                :button-texts="['移除 ←', '添加 →']"
                 :format="{
                   noChecked: '共 ${total} 个',
                   hasChecked: '已选 ${checked} / ${total}'
@@ -1448,6 +1448,9 @@ export default {
   background: #ffffff;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   transition: all 0.3s ease;
+  height: 400px;
+  display: flex;
+  flex-direction: column;
 }
 
 .website-selection :deep(.el-transfer-panel:hover) {
@@ -1468,6 +1471,7 @@ export default {
 .website-selection :deep(.el-transfer-panel__filter) {
   padding: 16px 20px;
   border-bottom: 1px solid #f0f0f0;
+  flex-shrink: 0;
 }
 
 .website-selection :deep(.el-transfer-panel__filter .el-input) {
@@ -1476,22 +1480,23 @@ export default {
 
 .website-selection :deep(.el-transfer-panel__list) {
   padding: 8px 0;
-  max-height: 280px;
+  height: 280px;
+  min-height: 280px;
   overflow-y: auto;
 }
 
 .website-selection :deep(.el-transfer-panel__item) {
-  padding: 6px 10px !important;
-  margin: 1px 4px !important;
+  padding: 8px 12px !important;
+  margin: 2px 6px !important;
   border-radius: 6px;
   transition: all 0.2s ease;
   font-size: 13px;
   display: flex !important;
   align-items: center !important;
   line-height: 1.2;
-  min-height: 28px !important;
+  min-height: 32px !important;
   position: relative !important;
-  width: calc(100% - 8px) !important;
+  width: calc(100% - 12px) !important;
   box-sizing: border-box !important;
 }
 
@@ -1513,15 +1518,16 @@ export default {
   width: 100% !important;
   margin: 0 !important;
   padding: 0 !important;
-  min-height: 18px !important;
+  min-height: 20px !important;
+  gap: 12px !important;
 }
 
 .website-selection :deep(.el-transfer-panel__item .el-checkbox__input) {
   flex-shrink: 0 !important;
-  margin: 0 6px 0 0 !important;
+  margin: 0 !important;
   padding: 0 !important;
-  width: 16px !important;
-  height: 16px !important;
+  width: 18px !important;
+  height: 18px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -1536,13 +1542,15 @@ export default {
 
 .website-selection :deep(.el-transfer-panel__item .el-checkbox__label) {
   flex: 1 !important;
-  margin: 0 !important;
+  margin-left: 30px !important;
   padding: 0 !important;
-  line-height: 16px !important;
-  font-size: 13px !important;
-  display: inline-block !important;
-  vertical-align: middle !important;
+  line-height: 20px !important;
+  font-size: 14px !important;
+  display: block !important;
   word-wrap: break-word !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
 }
 
 /* 确保原生input不影响布局 */
@@ -1555,6 +1563,15 @@ export default {
 /* 优化列表容器 */
 .website-selection :deep(.el-transfer-panel__list) {
   padding: 6px !important;
+  height: 280px !important;
+  min-height: 280px !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* 调整穿梭框主体高度 */
+.website-selection :deep(.el-transfer-panel__body) {
+  height: 400px !important;
 }
 
 .website-selection :deep(.el-transfer__buttons) {

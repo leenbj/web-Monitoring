@@ -365,18 +365,36 @@ export default {
       }
     }
 
-    // 刷新状态
+    // 优化的刷新状态 - 分批加载减少并发请求
     const refreshStatus = async () => {
       refreshing.value = true
       try {
+        // 第一批：关键状态数据（并行加载）
         await Promise.all([
           loadStatistics(),
-          loadRecentResults(),
-          checkMonitorStatus(),
-          checkWebsiteCount()
+          checkMonitorStatus()
         ])
+        
+        // 第二批：辅助数据（延迟100ms）
+        setTimeout(async () => {
+          try {
+            await checkWebsiteCount()
+          } catch (error) {
+            console.error('加载网站数量失败:', error)
+          }
+        }, 100)
+        
+        // 第三批：详细数据（延迟200ms）
+        setTimeout(async () => {
+          try {
+            await loadRecentResults()
+          } catch (error) {
+            console.error('加载最新结果失败:', error)
+          }
+        }, 200)
+        
       } catch (error) {
-        console.error('刷新状态失败:', error)
+        console.error('刷新关键状态失败:', error)
       } finally {
         refreshing.value = false
       }
@@ -478,11 +496,24 @@ export default {
 
 
 
-    // 启动定时刷新
+    // 启动智能定时刷新 - 根据活动状态调整频率
     const startStatusCheck = () => {
+      let refreshCount = 0
       statusCheckInterval = setInterval(() => {
-        refreshStatus()
-      }, 120000) // 2分钟刷新一次（从30秒改为120秒，减少频繁刷新）
+        refreshCount++
+        
+        // 前3次刷新频率较高（2分钟），之后降低到5分钟
+        if (refreshCount <= 3) {
+          refreshStatus()
+        } else if (refreshCount % 2 === 0) {
+          // 每4分钟刷新一次关键数据
+          loadStatistics()
+          checkMonitorStatus()
+        } else {
+          // 每2分钟简单检查监控状态
+          checkMonitorStatus()
+        }
+      }, 120000) // 2分钟基础间隔
     }
 
     // 停止定时刷新
@@ -499,7 +530,24 @@ export default {
     })
 
     onUnmounted(() => {
+      // 清理定时器
       stopStatusCheck()
+      
+      // 清理响应式数据，防止内存泄漏
+      statistics.value = {
+        total_websites: 0,
+        monitoring_websites: 0,
+        normal_websites: 0,
+        failed_websites: 0,
+        redirect_websites: 0
+      }
+      recentResults.value = []
+      
+      // 清理其他状态
+      refreshing.value = false
+      quickDetecting.value = false
+      monitorStatus.value = false
+      hasWebsites.value = false
     })
 
     return {
