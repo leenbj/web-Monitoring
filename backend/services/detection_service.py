@@ -19,14 +19,14 @@ class DetectionService:
     """检测服务"""
     
     def __init__(self):
-        # 使用优化的配置
+        # 使用极度优化的配置
         config = BatchDetectionConfig(
-            batch_size=20,           # 降低批次大小
-            max_concurrent=10,       # 降低并发数
-            timeout_seconds=15,      # 降低超时时间
-            retry_times=2,           # 降低重试次数
+            batch_size=10,           # 进一步降低批次大小（从20降到10）
+            max_concurrent=5,        # 进一步降低并发数（从10降到5）
+            timeout_seconds=10,      # 进一步降低超时时间（从15降到10）
+            retry_times=1,           # 进一步降低重试次数（从2降到1）
             enable_async=True,
-            memory_limit_mb=256      # 降低内存限制
+            memory_limit_mb=128      # 进一步降低内存限制（从256降到128）
         )
         self.batch_service = BatchDetectionService(config)
         logger.info("检测服务初始化完成")

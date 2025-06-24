@@ -63,10 +63,10 @@ class FailedSiteMonitorService:
                         name=f"{parent_task.name} - 失败网站监控",
                         description=f"监控任务 '{parent_task.name}' 中不可访问的网站",
                         parent_task_id=parent_task_id,
-                        interval_hours=0.5,  # 30分钟间隔
-                        max_concurrent=10,
-                        timeout_seconds=30,
-                        retry_times=3,
+                        interval_hours=2,  # 2小时间隔（从30分钟改为2小时，减少资源占用）
+                        max_concurrent=5,  # 降低并发数（从10降到5）
+                        timeout_seconds=20,  # 降低超时时间（从30降到20）
+                        retry_times=2,     # 降低重试次数（从3降到2）
                         is_active=True
                     )
                     db.add(monitor_task)
@@ -442,4 +442,128 @@ class FailedSiteMonitorService:
                 
         except Exception as e:
             logger.error(f"获取恢复网站列表失败: {e}")
-            return [] 
+            return []
+    
+    def toggle_monitor_task_status(self, monitor_task_id: int) -> bool:
+        """
+        切换失败监控任务的启动/停止状态
+        
+        Args:
+            monitor_task_id: 监控任务ID
+            
+        Returns:
+            是否操作成功
+        """
+        try:
+            with get_db() as db:
+                monitor_task = db.query(FailedSiteMonitorTask).filter(
+                    FailedSiteMonitorTask.id == monitor_task_id
+                ).first()
+                
+                if not monitor_task:
+                    logger.error(f"失败监控任务不存在: {monitor_task_id}")
+                    return False
+                
+                # 切换状态
+                monitor_task.is_active = not monitor_task.is_active
+                monitor_task.updated_at = get_beijing_time()
+                
+                db.commit()
+                
+                action = "启动" if monitor_task.is_active else "停止"
+                logger.info(f"失败监控任务 {monitor_task_id} 已{action}")
+                
+                return True
+                
+        except Exception as e:
+            logger.error(f"切换失败监控任务状态失败: {e}")
+            return False
+    
+    def update_monitor_task_settings(
+        self, 
+        monitor_task_id: int, 
+        update_params: Dict, 
+        website_ids: List[int] = None
+    ) -> bool:
+        """
+        更新失败监控任务设置
+        
+        Args:
+            monitor_task_id: 监控任务ID
+            update_params: 更新参数字典
+            website_ids: 监控网站ID列表（可选）
+            
+        Returns:
+            是否更新成功
+        """
+        try:
+            with get_db() as db:
+                monitor_task = db.query(FailedSiteMonitorTask).filter(
+                    FailedSiteMonitorTask.id == monitor_task_id
+                ).first()
+                
+                if not monitor_task:
+                    logger.error(f"失败监控任务不存在: {monitor_task_id}")
+                    return False
+                
+                # 更新基本参数
+                for key, value in update_params.items():
+                    if hasattr(monitor_task, key):
+                        setattr(monitor_task, key, value)
+                
+                # 更新监控网站列表
+                if website_ids is not None:
+                    from ..models import Website
+                    
+                    # 清除现有关联
+                    monitor_task.monitored_websites.clear()
+                    
+                    # 添加新的网站
+                    for website_id in website_ids:
+                        website = db.query(Website).filter(Website.id == website_id).first()
+                        if website:
+                            monitor_task.monitored_websites.append(website)
+                
+                monitor_task.updated_at = get_beijing_time()
+                db.commit()
+                
+                logger.info(f"失败监控任务 {monitor_task_id} 设置更新成功")
+                return True
+                
+        except Exception as e:
+            logger.error(f"更新失败监控任务设置失败: {e}")
+            return False
+    
+    def delete_monitor_task(self, monitor_task_id: int) -> bool:
+        """
+        删除失败监控任务
+        
+        Args:
+            monitor_task_id: 监控任务ID
+            
+        Returns:
+            是否删除成功
+        """
+        try:
+            with get_db() as db:
+                monitor_task = db.query(FailedSiteMonitorTask).filter(
+                    FailedSiteMonitorTask.id == monitor_task_id
+                ).first()
+                
+                if not monitor_task:
+                    logger.error(f"失败监控任务不存在: {monitor_task_id}")
+                    return False
+                
+                # 清除网站关联
+                monitor_task.monitored_websites.clear()
+                
+                # 删除任务
+                db.delete(monitor_task)
+                db.commit()
+                
+                logger.info(f"失败监控任务 {monitor_task_id} 删除成功")
+                return True
+                
+        except Exception as e:
+            logger.error(f"删除失败监控任务失败: {e}")
+            return False 

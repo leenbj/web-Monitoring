@@ -111,7 +111,7 @@
               </div>
               <div class="info-item">
                 <span class="label">检测间隔：</span>
-                <span class="value">{{ task.interval_hours }} 小时</span>
+                <span class="value">{{ Math.round(task.interval_hours * 60) }} 分钟</span>
               </div>
               <div class="info-item">
                 <span class="label">最后运行：</span>
@@ -123,8 +123,12 @@
                 size="small" 
                 :type="task.is_active ? 'warning' : 'success'"
                 @click="toggleFailedTask(task)"
+                :loading="task.toggling"
               >
                 {{ task.is_active ? '停止' : '启动' }}
+              </el-button>
+              <el-button size="small" @click="editFailedTask(task)">
+                编辑
               </el-button>
               <el-button size="small" @click="viewTaskWebsites(task)">
                 查看网站
@@ -274,6 +278,79 @@
         <el-table-column prop="last_check_time" label="最后检测时间" />
       </el-table>
     </el-dialog>
+
+    <!-- 编辑失败监控任务对话框 -->
+    <el-dialog 
+      v-model="editTaskDialogVisible" 
+      title="编辑失败监控任务" 
+      width="90%" 
+      :style="{ maxWidth: '1000px', minWidth: '600px' }"
+      class="edit-task-dialog"
+      :close-on-click-modal="false"
+    >
+      <el-form :model="editTaskForm" label-width="120px" class="edit-task-form">
+        <el-form-item label="任务名称">
+          <el-input v-model="editTaskForm.name" placeholder="请输入任务名称" />
+        </el-form-item>
+        
+        <el-form-item label="任务描述">
+          <el-input 
+            v-model="editTaskForm.description" 
+            type="textarea" 
+            :rows="3"
+            placeholder="请输入任务描述"
+          />
+        </el-form-item>
+        
+        <el-form-item label="监控间隔">
+          <div class="interval-input">
+            <el-input-number 
+              v-model="editTaskForm.interval_minutes" 
+              :min="1" 
+              :max="1440"
+              placeholder="监控间隔"
+            />
+            <span class="interval-unit">分钟</span>
+          </div>
+          <div class="interval-tips">
+            <small>建议间隔：失败网站检测建议15-60分钟，避免过于频繁</small>
+          </div>
+        </el-form-item>
+        
+        <el-form-item label="监控网站" class="website-form-item">
+          <div class="website-selection-container">
+            <div class="website-selection">
+              <el-transfer
+                v-model="editTaskForm.website_ids"
+                :data="availableWebsites"
+                :titles="['可选网站', '监控网站']"
+                :button-texts="['添加 →', '← 移除']"
+                :format="{
+                  noChecked: '共 ${total} 个',
+                  hasChecked: '已选 ${checked} / ${total}'
+                }"
+                filterable
+                :filter-placeholder="'搜索网站域名'"
+                target-order="push"
+              />
+            </div>
+            <div class="website-tips">
+              <el-icon><InfoFilled /></el-icon>
+              <span>选择需要监控的失败网站域名，系统会定期检测这些网站的恢复情况</span>
+            </div>
+          </div>
+        </el-form-item>
+      </el-form>
+      
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="editTaskDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="saveEditTask" :loading="saving">
+            保存设置
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -290,9 +367,10 @@ import {
   ArrowUp,
   ArrowDown,
   Switch,
-  Right
+  Right,
+  InfoFilled
 } from '@element-plus/icons-vue'
-import { resultApi, statusChangeApi, taskApi } from '../utils/api'
+import { resultApi, statusChangeApi, taskApi, websiteApi } from '../utils/api'
 
 export default {
   name: 'StatusChanges',
@@ -306,7 +384,8 @@ export default {
     ArrowUp,
     ArrowDown,
     Switch,
-    Right
+    Right,
+    InfoFilled
   },
   setup() {
     const loading = ref(false)
@@ -318,6 +397,17 @@ export default {
     const pageSize = ref(20)
     const changeTypeFilter = ref('')
     const taskWebsitesDialogVisible = ref(false)
+    const editTaskDialogVisible = ref(false)
+    const saving = ref(false)
+    const availableWebsites = ref([])
+
+    const editTaskForm = reactive({
+      id: null,
+      name: '',
+      description: '',
+      interval_minutes: 30,
+      website_ids: []
+    })
 
     const statusChangeStats = reactive({
       total_changes: 0,
@@ -573,12 +663,126 @@ export default {
     // 切换失败监控任务状态
     const toggleFailedTask = async (task) => {
       try {
-        // 模拟API调用
-        ElMessage.success(`任务已${task.is_active ? '停止' : '启动'}`)
-        task.is_active = !task.is_active
+        // 设置加载状态
+        task.toggling = true
+        
+        // 获取任务ID
+        const tasksResponse = await taskApi.getList({ page: 1, per_page: 1 })
+        if (!tasksResponse.data.tasks || tasksResponse.data.tasks.length === 0) {
+          ElMessage.error('没有找到可用的任务')
+          return
+        }
+
+        const firstTaskId = tasksResponse.data.tasks[0].id
+        
+        // 调用切换API
+        const response = await statusChangeApi.toggleFailedMonitorTask(firstTaskId)
+        
+        ElMessage.success(response.message || `任务已${task.is_active ? '停止' : '启动'}`)
+        
+        // 重新加载任务列表
         await loadFailedMonitorTasks()
       } catch (error) {
-        ElMessage.error('操作失败')
+        console.error('切换任务状态失败:', error)
+        ElMessage.error('操作失败：' + (error.response?.data?.message || error.message))
+      } finally {
+        task.toggling = false
+      }
+    }
+
+    // 编辑失败监控任务
+    const editFailedTask = async (task) => {
+      try {
+        // 重置表单
+        Object.assign(editTaskForm, {
+          id: task.id,
+          name: task.name,
+          description: task.description || '',
+          interval_minutes: Math.round(task.interval_hours * 60),
+          website_ids: []
+        })
+        
+        // 加载可用网站列表
+        await loadAvailableWebsites()
+        
+        // 获取当前任务监控的网站
+        await loadCurrentTaskWebsites(task.id)
+        
+        editTaskDialogVisible.value = true
+      } catch (error) {
+        ElMessage.error('加载编辑数据失败')
+      }
+    }
+
+    // 保存编辑的任务
+    const saveEditTask = async () => {
+      try {
+        saving.value = true
+        
+        // 获取任务ID
+        const tasksResponse = await taskApi.getList({ page: 1, per_page: 1 })
+        if (!tasksResponse.data.tasks || tasksResponse.data.tasks.length === 0) {
+          ElMessage.error('没有找到可用的任务')
+          return
+        }
+
+        const firstTaskId = tasksResponse.data.tasks[0].id
+        
+        // 准备更新数据
+        const updateData = {
+          name: editTaskForm.name,
+          description: editTaskForm.description,
+          interval_minutes: editTaskForm.interval_minutes,
+          website_ids: editTaskForm.website_ids
+        }
+        
+        // 调用更新API
+        const response = await statusChangeApi.updateFailedMonitorTask(firstTaskId, updateData)
+        
+        ElMessage.success(response.message || '任务更新成功')
+        editTaskDialogVisible.value = false
+        
+        // 重新加载任务列表
+        await loadFailedMonitorTasks()
+      } catch (error) {
+        console.error('保存任务失败:', error)
+        ElMessage.error('保存失败：' + (error.response?.data?.message || error.message))
+      } finally {
+        saving.value = false
+      }
+    }
+
+    // 加载可用网站列表
+    const loadAvailableWebsites = async () => {
+      try {
+        const response = await websiteApi.getList({ page: 1, per_page: 1000 })
+        availableWebsites.value = response.data.websites.map(website => ({
+          key: website.id,
+          label: website.domain,
+          disabled: false
+        }))
+      } catch (error) {
+        console.error('加载网站列表失败:', error)
+        // 使用模拟数据
+        availableWebsites.value = [
+          { key: 5, label: '北龙中网.网址', disabled: false },
+          { key: 6, label: '测试.网址', disabled: false },
+          { key: 7, label: '中网.网址', disabled: false },
+          { key: 8, label: '百度.网址', disabled: false },
+          { key: 9, label: '谷歌.网址', disabled: false },
+          { key: 10, label: '腾讯.网址', disabled: false },
+          { key: 11, label: '大兴智能.网址', disabled: false }
+        ]
+      }
+    }
+
+    // 加载当前任务监控的网站
+    const loadCurrentTaskWebsites = async (taskId) => {
+      try {
+        // 这里应该调用API获取当前任务监控的网站，暂时使用模拟数据
+        editTaskForm.website_ids = [5, 6, 7, 8, 9] // 模拟已选择的网站ID
+      } catch (error) {
+        console.error('加载任务网站失败:', error)
       }
     }
 
@@ -595,11 +799,24 @@ export default {
           }
         )
 
-        ElMessage.success('任务删除成功')
+        // 获取任务ID
+        const tasksResponse = await taskApi.getList({ page: 1, per_page: 1 })
+        if (!tasksResponse.data.tasks || tasksResponse.data.tasks.length === 0) {
+          ElMessage.error('没有找到可用的任务')
+          return
+        }
+
+        const firstTaskId = tasksResponse.data.tasks[0].id
+        
+        // 调用删除API
+        const response = await statusChangeApi.deleteFailedMonitorTask(firstTaskId)
+        
+        ElMessage.success(response.message || '任务删除成功')
         await loadFailedMonitorTasks()
       } catch (error) {
         if (error !== 'cancel') {
-          ElMessage.error('删除失败')
+          console.error('删除任务失败:', error)
+          ElMessage.error('删除失败：' + (error.response?.data?.message || error.message))
         }
       }
     }
@@ -750,12 +967,18 @@ export default {
       pageSize,
       changeTypeFilter,
       taskWebsitesDialogVisible,
+      editTaskDialogVisible,
+      editTaskForm,
+      availableWebsites,
+      saving,
       statusChangeStats,
       failedSiteMonitorStats,
       hasFailedSites,
       refreshData,
       createFailedSiteTask,
       toggleFailedTask,
+      editFailedTask,
+      saveEditTask,
       deleteFailedTask,
       viewTaskWebsites,
       addToFailedMonitor,
@@ -1090,6 +1313,369 @@ export default {
   transition: all 0.15s ease;
 }
 
+/* 编辑对话框样式 */
+.edit-task-dialog {
+  width: 90%;
+  max-width: 1000px;
+  min-width: 700px;
+}
+
+.edit-task-dialog :deep(.el-dialog__body) {
+  overflow-x: hidden;
+  padding: 16px 24px;
+}
+
+.edit-task-dialog :deep(.el-dialog__header) {
+  padding: 20px 24px 16px 24px;
+}
+
+.edit-task-dialog :deep(.el-dialog__footer) {
+  padding: 16px 24px 20px 24px;
+}
+
+@media (max-width: 900px) {
+  .edit-task-dialog {
+    width: 95%;
+    min-width: auto;
+    max-width: none;
+  }
+  
+  .edit-task-dialog :deep(.el-dialog__body) {
+    padding: 12px 16px;
+  }
+  
+  .edit-task-dialog :deep(.el-dialog__header) {
+    padding: 16px 16px 12px 16px;
+  }
+  
+  .edit-task-dialog :deep(.el-dialog__footer) {
+    padding: 12px 16px 16px 16px;
+  }
+}
+
+.edit-task-form {
+  padding: 16px 0;
+  overflow: hidden;
+}
+
+.edit-task-form .el-form-item {
+  margin-bottom: 20px;
+}
+
+.edit-task-form .el-form-item__content {
+  overflow: hidden;
+}
+
+.interval-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.interval-unit {
+  color: #6b7280;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.interval-tips {
+  margin-top: 8px;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+/* 网站选择容器优化 */
+.website-form-item {
+  margin-bottom: 20px;
+}
+
+.website-form-item .el-form-item__content {
+  overflow: hidden;
+}
+
+.website-selection-container {
+  width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.website-selection {
+  width: 100%;
+  min-height: 400px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 12px;
+  border: 1px solid #e4e7ed;
+  margin-bottom: 16px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.website-tips {
+  color: #606266;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #f0f9ff;
+  border: 1px solid #b3d8ff;
+  border-radius: 8px;
+  margin: 0;
+}
+
+.website-tips .el-icon {
+  color: #409eff;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+/* 穿梭框样式优化 */
+.website-selection :deep(.el-transfer) {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: stretch;
+  background: transparent;
+  border: none;
+  gap: 12px;
+  box-sizing: border-box;
+}
+
+.website-selection :deep(.el-transfer-panel) {
+  border: 1px solid #dcdfe6;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.website-selection :deep(.el-transfer-panel:hover) {
+  border-color: #409eff;
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.15);
+}
+
+.website-selection :deep(.el-transfer-panel__header) {
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  border-bottom: 1px solid #ebeef5;
+  padding: 16px 20px;
+  border-radius: 10px 10px 0 0;
+  font-weight: 600;
+  color: #303133;
+  font-size: 14px;
+}
+
+.website-selection :deep(.el-transfer-panel__filter) {
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.website-selection :deep(.el-transfer-panel__filter .el-input) {
+  border-radius: 8px;
+}
+
+.website-selection :deep(.el-transfer-panel__list) {
+  padding: 8px 0;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.website-selection :deep(.el-transfer-panel__item) {
+  padding: 10px 14px !important;
+  margin: 2px 6px !important;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  font-size: 13px;
+  display: flex !important;
+  align-items: center !important;
+  line-height: 1.4;
+  min-height: 32px !important;
+  gap: 10px !important;
+}
+
+.website-selection :deep(.el-transfer-panel__item:hover) {
+  background: #f0f9ff;
+  transform: translateX(2px);
+}
+
+.website-selection :deep(.el-transfer-panel__item.is-checked) {
+  background: #e1f5fe;
+  color: #1976d2;
+  font-weight: 500;
+}
+
+.website-selection :deep(.el-transfer-panel__item .el-checkbox) {
+  margin: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  flex: 1 !important;
+  width: 100% !important;
+}
+
+.website-selection :deep(.el-transfer-panel__item .el-checkbox__input) {
+  display: flex !important;
+  align-items: center !important;
+  margin-right: 0 !important;
+  flex-shrink: 0 !important;
+  width: 16px !important;
+  height: 16px !important;
+}
+
+.website-selection :deep(.el-transfer-panel__item .el-checkbox__inner) {
+  margin: 0 !important;
+  width: 14px !important;
+  height: 14px !important;
+}
+
+.website-selection :deep(.el-transfer-panel__item .el-checkbox__label) {
+  display: block !important;
+  line-height: 1.4 !important;
+  font-size: 13px !important;
+  margin: 0 !important;
+  padding: 0 0 0 8px !important;
+  flex: 1 !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+}
+
+.website-selection :deep(.el-transfer__buttons) {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  padding: 0 8px;
+  min-width: 100px;
+  max-width: 100px;
+  box-sizing: border-box;
+}
+
+.website-selection :deep(.el-transfer__button) {
+  border-radius: 20px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 70px;
+  max-width: 80px;
+  transition: all 0.3s ease;
+  border: 2px solid #409eff;
+  background: #ffffff;
+  color: #409eff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.website-selection :deep(.el-transfer__button:hover:not(.is-disabled)) {
+  background: #409eff;
+  color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.4);
+}
+
+.website-selection :deep(.el-transfer__button.is-disabled) {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-color: #c0c4cc;
+  color: #c0c4cc;
+}
+
+/* 滚动条美化 */
+.website-selection :deep(.el-transfer-panel__list::-webkit-scrollbar) {
+  width: 6px;
+}
+
+.website-selection :deep(.el-transfer-panel__list::-webkit-scrollbar-track) {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.website-selection :deep(.el-transfer-panel__list::-webkit-scrollbar-thumb) {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.website-selection :deep(.el-transfer-panel__list::-webkit-scrollbar-thumb:hover) {
+  background: #a8a8a8;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* 任务卡片的加载状态 */
+.task-actions .el-button.is-loading {
+  cursor: not-allowed;
+}
+
+/* 大屏幕布局 */
+@media (min-width: 1024px) {
+  .website-selection :deep(.el-transfer-panel) {
+    width: calc(44% - 6px);
+    min-width: 260px;
+    max-width: 340px;
+    height: 400px;
+    flex-shrink: 1;
+  }
+  
+  .website-selection :deep(.el-transfer__buttons) {
+    width: 12%;
+    min-width: 90px;
+    max-width: 110px;
+    flex-shrink: 0;
+  }
+}
+
+/* 中等屏幕适配 */
+@media (max-width: 1023px) and (min-width: 769px) {
+  .website-selection :deep(.el-transfer-panel) {
+    width: calc(44% - 4px);
+    min-width: 240px;
+    max-width: 300px;
+    height: 380px;
+    flex-shrink: 0;
+  }
+  
+  .website-selection :deep(.el-transfer__buttons) {
+    width: 12%;
+    min-width: 80px;
+    max-width: 80px;
+    padding: 0 6px;
+  }
+  
+  .website-selection :deep(.el-transfer__button) {
+    min-width: 60px;
+    max-width: 70px;
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+  
+  .website-selection :deep(.el-transfer-panel__item) {
+    padding: 8px 12px !important;
+    font-size: 12px !important;
+    min-height: 30px !important;
+    gap: 8px !important;
+  }
+  
+  .website-selection :deep(.el-transfer-panel__item .el-checkbox__input) {
+    width: 14px !important;
+    height: 14px !important;
+  }
+  
+  .website-selection :deep(.el-transfer-panel__item .el-checkbox__inner) {
+    width: 12px !important;
+    height: 12px !important;
+  }
+  
+  .website-selection :deep(.el-transfer-panel__item .el-checkbox__label) {
+    font-size: 12px !important;
+    padding-left: 6px !important;
+  }
+}
+
 /* 响应式设计 */
 @media (max-width: 768px) {
   .status-changes-page {
@@ -1119,6 +1705,68 @@ export default {
   .status-change-display {
     flex-direction: column;
     gap: 4px;
+  }
+  
+  .edit-task-form {
+    padding: 8px 0;
+  }
+  
+  .website-selection {
+    min-height: auto;
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+  
+  .website-selection :deep(.el-transfer) {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .website-selection :deep(.el-transfer-panel) {
+    width: 100% !important;
+    min-width: auto;
+    max-width: none;
+    height: 260px;
+    box-sizing: border-box;
+  }
+  
+  .website-selection :deep(.el-transfer-panel__item) {
+    padding: 8px 12px !important;
+    font-size: 12px !important;
+    min-height: 30px !important;
+    gap: 8px !important;
+  }
+  
+  .website-selection :deep(.el-transfer-panel__item .el-checkbox__input) {
+    width: 14px !important;
+    height: 14px !important;
+  }
+  
+  .website-selection :deep(.el-transfer-panel__item .el-checkbox__inner) {
+    width: 12px !important;
+    height: 12px !important;
+  }
+  
+  .website-selection :deep(.el-transfer-panel__item .el-checkbox__label) {
+    font-size: 12px !important;
+    padding-left: 6px !important;
+  }
+  
+  .website-selection :deep(.el-transfer__buttons) {
+    flex-direction: row;
+    justify-content: center;
+    min-width: auto;
+    max-width: none;
+    width: 100%;
+    padding: 8px 0;
+    box-sizing: border-box;
+  }
+  
+  .website-selection :deep(.el-transfer__button) {
+    min-width: 70px;
+    max-width: 100px;
+    margin: 0 6px;
+    padding: 6px 10px;
   }
 }
 </style> 

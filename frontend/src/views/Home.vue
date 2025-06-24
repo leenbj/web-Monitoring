@@ -482,7 +482,7 @@ export default {
     const startStatusCheck = () => {
       statusCheckInterval = setInterval(() => {
         refreshStatus()
-      }, 30000) // 30秒刷新一次
+      }, 120000) // 2分钟刷新一次（从30秒改为120秒，减少频繁刷新）
     }
 
     // 停止定时刷新

@@ -27,7 +27,7 @@ class SchedulerService:
         self.cleanup_service = FileCleanupService()
         self.is_running = False
         self.scheduler_thread = None
-        self.executor = ThreadPoolExecutor(max_workers=2)  # 从5降到2，减少资源占用
+        self.executor = ThreadPoolExecutor(max_workers=1)  # 进一步降到1，减少资源占用
         self.running_tasks = {}
         self._shutdown = False
         self._task_lock = threading.Lock()  # 添加任务锁防止竞态条件
@@ -83,11 +83,11 @@ class SchedulerService:
                 # 执行文件清理调度
                 self._schedule_file_cleanup(current_time)
                 
-                # 分段休眠，提高响应性（从60秒分为6次10秒）
+                # 分段休眠，进一步减少检查频率（从60秒增加到180秒，分为6次30秒）
                 for i in range(6):
                     if self._shutdown:
                         break
-                    time.sleep(10)
+                    time.sleep(30)
                 
             except Exception as e:
                 logger.error(f"调度循环异常: {e}")

@@ -10,26 +10,26 @@
 
     <el-card class="table-card" shadow="never">
       <el-table :data="tasks" v-loading="loading" stripe border style="width: 100%">
-      <el-table-column prop="id" label="ID" width="60" />
-      <el-table-column prop="name" label="任务名称" min-width="150" show-overflow-tooltip />
-      <el-table-column prop="interval_hours" label="检测间隔(小时)" width="120">
+      <el-table-column prop="id" label="ID" width="80" />
+      <el-table-column prop="name" label="任务名称" width="200" show-overflow-tooltip />
+      <el-table-column prop="interval_hours" label="检测间隔" width="100" align="center">
         <template #default="{ row }">
-          {{ row.interval_hours }}
+          {{ row.interval_hours }}小时
         </template>
       </el-table-column>
-      <el-table-column prop="is_active" label="状态" width="80">
+      <el-table-column prop="is_active" label="状态" width="100" align="center">
         <template #default="{ row }">
           <el-tag :type="row.is_active ? 'success' : 'danger'" size="small">
             {{ row.is_active ? '运行中' : '已停止' }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="created_at" label="创建时间" width="160">
+      <el-table-column prop="created_at" label="创建时间" width="180">
         <template #default="{ row }">
           {{ formatDate(row.created_at) }}
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="300">
+      <el-table-column label="操作" min-width="360">
         <template #default="{ row }">
           <div class="action-buttons">
             <el-button 
@@ -400,21 +400,44 @@ export default {
 .action-buttons {
   display: flex;
   gap: 6px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-start;
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+}
+
+.action-buttons::-webkit-scrollbar {
+  height: 2px;
+}
+
+.action-buttons::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.action-buttons::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 2px;
+}
+
+.action-buttons::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
 }
 
 /* 表格内按钮样式 - Claude风格 */
 .action-buttons .el-button {
   margin: 0;
-  padding: 6px 10px;
+  padding: 5px 10px;
   font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
   border-radius: 6px;
   transition: all 0.15s ease;
   line-height: 1;
+  flex-shrink: 0;
+  min-width: auto;
 }
 
 /* 默认按钮样式 */
@@ -510,6 +533,30 @@ export default {
 }
 
 /* 响应式设计 */
+@media (max-width: 1400px) {
+  .action-buttons .el-button {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+  
+  .action-buttons .el-button .el-icon {
+    margin-right: 3px;
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .action-buttons .el-button {
+    padding: 3px 6px;
+    font-size: 10px;
+  }
+  
+  .action-buttons .el-button .el-icon {
+    margin-right: 2px;
+    font-size: 10px;
+  }
+}
+
 @media (max-width: 768px) {
   .tasks-page {
     padding: 16px;
@@ -523,13 +570,21 @@ export default {
   }
   
   .action-buttons {
-    flex-direction: column;
-    gap: 4px;
-    align-items: stretch;
+    gap: 3px;
+    justify-content: space-between;
   }
   
   .action-buttons .el-button {
-    justify-content: flex-start;
+    padding: 3px 5px;
+    font-size: 10px;
+    flex: 1;
+    text-align: center;
+    min-width: 0;
+  }
+  
+  .action-buttons .el-button .el-icon {
+    margin-right: 2px;
+    font-size: 10px;
   }
 }
 

@@ -15,16 +15,16 @@ logger = logging.getLogger(__name__)
 # 获取配置
 config = get_config()
 
-# 创建数据库引擎 - 大规模监控优化配置
+# 创建数据库引擎 - 优化资源占用配置
 engine = create_engine(
     config.SQLALCHEMY_DATABASE_URI,
     echo=getattr(config, 'SQLALCHEMY_ECHO', False),
-    # 优化连接池配置 - 降低资源占用
+    # 进一步优化连接池配置 - 大幅降低资源占用
     poolclass=QueuePool,
-    pool_size=10,                 # 连接池大小（从50降到10）
-    max_overflow=20,              # 最大溢出连接数（从100降到20）
-    pool_timeout=30,              # 获取连接超时时间（从60降到30）
-    pool_recycle=1800,            # 连接回收时间(30分钟，从1小时降低)
+    pool_size=3,                  # 连接池大小（降到3）
+    max_overflow=5,               # 最大溢出连接数（降到5）
+    pool_timeout=15,              # 获取连接超时时间（降到15秒）
+    pool_recycle=900,             # 连接回收时间(15分钟，进一步降低)
     pool_pre_ping=True,           # 连接前检查
     # SQLite优化配置
     connect_args={

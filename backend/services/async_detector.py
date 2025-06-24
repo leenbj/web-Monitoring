@@ -21,17 +21,17 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class AsyncDetectionConfig:
-    """异步检测配置 - 进一步优化版本，降低资源占用"""
-    max_concurrent: int = 10          # 最大并发连接数（从20降到10）
-    max_per_host: int = 3            # 每个主机最大连接数（从5降到3）
-    timeout_total: int = 12          # 总超时时间(秒)（从15降到12）
-    timeout_connect: int = 6         # 连接超时时间(秒)（从8降到6）
-    timeout_read: int = 8            # 读取超时时间(秒)（从12降到8）
-    max_redirects: int = 2           # 最大重定向次数（从3降到2）
-    max_content_size: int = 256*1024 # 最大内容大小(256KB)（从512KB降到256KB）
+    """异步检测配置 - 极度优化版本，最大化降低资源占用"""
+    max_concurrent: int = 5           # 最大并发连接数（进一步从10降到5）
+    max_per_host: int = 2            # 每个主机最大连接数（从3降到2）
+    timeout_total: int = 10          # 总超时时间(秒)（从12降到10）
+    timeout_connect: int = 5         # 连接超时时间(秒)（从6降到5）
+    timeout_read: int = 6            # 读取超时时间(秒)（从8降到6）
+    max_redirects: int = 1           # 最大重定向次数（从2降到1）
+    max_content_size: int = 128*1024 # 最大内容大小(128KB)（从256KB降到128KB）
     user_agent: str = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
     verify_ssl: bool = False         # 是否验证SSL
-    dns_cache_ttl: int = 300         # DNS缓存TTL(秒)（从600降到300，减少内存）
+    dns_cache_ttl: int = 180         # DNS缓存TTL(秒)（从300降到180，进一步减少内存）
     keep_alive: bool = False         # 关闭保持连接，减少资源占用
 
 

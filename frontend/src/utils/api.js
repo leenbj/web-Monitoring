@@ -199,7 +199,16 @@ export const statusChangeApi = {
   getRecoveredWebsites: (taskId, params) => api.get(`/status-changes/task/${taskId}/recovered`, { params }),
   
   // 手动运行失败网站监控任务
-  runFailedMonitorTask: (taskId) => api.post(`/status-changes/task/${taskId}/failed-monitor/run`)
+  runFailedMonitorTask: (taskId) => api.post(`/status-changes/task/${taskId}/failed-monitor/run`),
+  
+  // 启动或停止失败网站监控任务
+  toggleFailedMonitorTask: (taskId) => api.post(`/status-changes/task/${taskId}/failed-monitor/toggle`),
+  
+  // 更新失败网站监控任务设置
+  updateFailedMonitorTask: (taskId, data) => api.put(`/status-changes/task/${taskId}/failed-monitor/update`, data),
+  
+  // 删除失败网站监控任务
+  deleteFailedMonitorTask: (taskId) => api.delete(`/status-changes/task/${taskId}/failed-monitor/delete`)
 }
 
 export const settingsApi = {

@@ -163,3 +163,5 @@ The project includes comprehensive test files:
 - APScheduler runs in background threads and persists across application restarts
 - File uploads are limited to 16MB with support for .xlsx, .xls, and .csv formats
 - Beijing timezone (UTC+8) is used consistently throughout the application
+
+全程对话需要使用中文

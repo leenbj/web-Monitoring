@@ -101,7 +101,7 @@
               <el-option label="无法访问" value="failed" />
             </el-select>
           </el-col>
-          <el-col :span="7">
+          <el-col :span="6">
             <el-date-picker
               v-model="dateRange"
               type="datetimerange"
@@ -114,7 +114,7 @@
           <el-col :span="1">
             <!-- 间距列 -->
           </el-col>
-          <el-col :span="4">
+          <el-col :span="6">
             <el-input
               v-model="searchKeyword"
               placeholder="搜索网站名称或域名"
@@ -126,7 +126,7 @@
               </template>
             </el-input>
           </el-col>
-          <el-col :span="8">
+          <el-col :span="7">
             <div class="filter-summary">
               <el-tag type="info">共 {{ total }} 条记录</el-tag>
               <el-tag v-if="statusFilter" :type="getStatusTagType(statusFilter)">

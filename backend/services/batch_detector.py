@@ -275,8 +275,8 @@ class BatchDetectionService:
             batches = list(batch_process_list(urls, self.config.batch_size))
             logger.info(f"分为 {len(batches)} 个批次处理")
             
-            # 使用线程池处理各个批次
-            with ThreadPoolExecutor(max_workers=min(5, len(batches))) as executor:
+            # 使用线程池处理各个批次（进一步降低并发）
+            with ThreadPoolExecutor(max_workers=min(2, len(batches))) as executor:
                 # 提交批次任务
                 future_to_batch = {}
                 for batch_idx, batch_urls in enumerate(batches):
