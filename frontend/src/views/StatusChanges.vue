@@ -1481,16 +1481,15 @@ export default {
 }
 
 .website-selection :deep(.el-transfer-panel__item) {
-  padding: 10px 12px !important;
-  margin: 2px 4px !important;
+  padding: 6px 10px !important;
+  margin: 1px 4px !important;
   border-radius: 6px;
   transition: all 0.2s ease;
   font-size: 13px;
   display: flex !important;
   align-items: center !important;
-  line-height: 1.4;
-  min-height: 32px !important;
-  gap: 0 !important;
+  line-height: 1.2;
+  min-height: 28px !important;
   position: relative !important;
   width: calc(100% - 8px) !important;
   box-sizing: border-box !important;
@@ -1507,65 +1506,55 @@ export default {
   font-weight: 500;
 }
 
+/* 核心对齐修复 - 确保复选框和文本在同一行 */
 .website-selection :deep(.el-transfer-panel__item .el-checkbox) {
-  margin: 0 !important;
   display: flex !important;
   align-items: center !important;
-  flex: 1 !important;
   width: 100% !important;
-  gap: 10px !important;
-  line-height: 1 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  min-height: 18px !important;
 }
 
 .website-selection :deep(.el-transfer-panel__item .el-checkbox__input) {
+  flex-shrink: 0 !important;
+  margin: 0 6px 0 0 !important;
+  padding: 0 !important;
+  width: 16px !important;
+  height: 16px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  margin: 0 !important;
-  flex-shrink: 0 !important;
-  width: 16px !important;
-  height: 16px !important;
-  position: relative !important;
-  vertical-align: middle !important;
 }
 
 .website-selection :deep(.el-transfer-panel__item .el-checkbox__inner) {
-  margin: 0 !important;
   width: 14px !important;
   height: 14px !important;
-  position: relative !important;
-  z-index: 1 !important;
-  vertical-align: middle !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 .website-selection :deep(.el-transfer-panel__item .el-checkbox__label) {
-  display: flex !important;
-  align-items: center !important;
-  line-height: 1.4 !important;
-  font-size: 13px !important;
+  flex: 1 !important;
   margin: 0 !important;
   padding: 0 !important;
-  flex: 1 !important;
-  word-break: break-word !important;
-  overflow-wrap: break-word !important;
-  min-width: 0 !important;
-  overflow: visible !important;
-  text-align: left !important;
-  width: auto !important;
+  line-height: 16px !important;
+  font-size: 13px !important;
+  display: inline-block !important;
   vertical-align: middle !important;
+  word-wrap: break-word !important;
 }
 
-/* 确保复选框和文本不重叠的额外样式 */
+/* 确保原生input不影响布局 */
 .website-selection :deep(.el-transfer-panel__item .el-checkbox__original) {
   position: absolute !important;
   opacity: 0 !important;
-  outline: none !important;
-  z-index: -1 !important;
+  left: -9999px !important;
 }
 
-/* 确保整体布局对齐 */
+/* 优化列表容器 */
 .website-selection :deep(.el-transfer-panel__list) {
-  padding: 8px 4px !important;
+  padding: 6px !important;
 }
 
 .website-selection :deep(.el-transfer__buttons) {
