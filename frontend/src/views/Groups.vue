@@ -28,12 +28,6 @@
         </template>
       </el-table-column>
       <el-table-column prop="description" label="描述" min-width="200" />
-      <el-table-column prop="color" label="颜色" width="100">
-        <template #default="{ row }">
-          <div class="color-preview" :style="{ backgroundColor: row.color }"></div>
-          <span class="color-text">{{ row.color }}</span>
-        </template>
-      </el-table-column>
       <el-table-column prop="website_count" label="网站数量" width="120">
         <template #default="{ row }">
           <el-tag type="info" size="small">{{ row.website_count }}</el-tag>
@@ -105,10 +99,6 @@
             :rows="3"
             placeholder="请输入描述"
           />
-        </el-form-item>
-        <el-form-item label="颜色" prop="color">
-          <el-color-picker v-model="form.color" />
-          <span class="color-tip">选择分组标签颜色</span>
         </el-form-item>
       </el-form>
       
@@ -186,8 +176,7 @@ export default {
     // 表单数据
     const form = reactive({
       name: '',
-      description: '',
-      color: '#409EFF'
+      description: ''
     })
 
     // 表单验证规则
@@ -232,14 +221,12 @@ export default {
       editingId.value = group.id
       form.name = group.name
       form.description = group.description || ''
-      form.color = group.color || '#409EFF'
       dialogVisible.value = true
     }
 
     const resetForm = () => {
       form.name = ''
       form.description = ''
-      form.color = '#409EFF'
       if (formRef.value) {
         formRef.value.resetFields()
       }
@@ -433,30 +420,7 @@ export default {
   font-size: 14px;
 }
 
-/* 颜色预览相关样式 */
-.color-preview {
-  display: inline-block;
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
-  vertical-align: middle;
-  margin-right: 8px;
-  border: 2px solid #ffffff;
-  box-shadow: 0 0 0 1px #e5e7eb;
-}
 
-.color-text {
-  font-size: 12px;
-  color: #6b7280;
-  font-weight: 500;
-}
-
-.color-tip {
-  margin-left: 12px;
-  font-size: 12px;
-  color: #6b7280;
-  font-weight: 500;
-}
 
 /* 网站链接样式 */
 .website-link {
@@ -601,16 +565,6 @@ export default {
   box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.1);
 }
 
-/* 颜色选择器样式 */
-.el-color-picker__trigger {
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
-  transition: all 0.15s ease;
-}
-
-.el-color-picker__trigger:hover {
-  border-color: #d1d5db;
-}
 
 /* 响应式设计 */
 @media (max-width: 768px) {
@@ -641,10 +595,6 @@ export default {
   }
 }
 
-/* 分组标识样式增强 */
-.table-card .el-table__body .color-preview {
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
 
 /* 默认分组特殊样式 */
 .table-card .el-table__body .el-tag[type="info"]:first-child {

@@ -9,9 +9,9 @@ import threading
 from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, text
 from ..database import get_db
-from ..models import Website, DetectionTask, DetectionRecord
+from ..models import Website, DetectionTask, DetectionRecord, WebsiteStatusChange, FailedSiteMonitorTask
 from ..services.website_detector import WebsiteDetector
 from ..services.scheduler import TaskScheduler
 
@@ -727,35 +727,108 @@ def delete_task_impl(task_id: int):
     删除检测任务
     """
     try:
-        with get_db() as db:
-            task = db.query(DetectionTask).filter(DetectionTask.id == task_id).first()
+        # 使用原始数据库连接以避免SQLAlchemy ORM的自动关系管理
+        from ..database import engine
+        
+        with engine.connect() as conn:
+            # 开始事务
+            trans = conn.begin()
             
-            if not task:
+            try:
+                # 先检查任务是否存在，并获取必要信息
+                task_result = conn.execute(
+                    text("SELECT id, is_active FROM detection_tasks WHERE id = :task_id"),
+                    {"task_id": task_id}
+                ).fetchone()
+                
+                if not task_result:
+                    trans.rollback()
+                    return jsonify({
+                        'code': 404,
+                        'message': '任务不存在',
+                        'data': None
+                    }), 404
+                
+                task_id_val, is_active = task_result
+                
+                # 如果任务正在运行，先停止
+                if is_active:
+                    scheduler = get_scheduler()
+                    if not scheduler.stop_task(task_id_val):
+                        logger.warning(f"停止任务调度失败，但继续删除任务: {task_id}")
+                
+                # 按依赖关系顺序删除相关记录
+                logger.info(f"开始删除任务 {task_id} 的相关记录...")
+                
+                # 1. 删除网站状态变化记录
+                result = conn.execute(
+                    text("DELETE FROM website_status_changes WHERE task_id = :task_id"),
+                    {"task_id": task_id}
+                )
+                logger.info(f"删除状态变化记录: {result.rowcount} 条")
+                
+                # 2. 获取失败网站监控任务ID列表
+                failed_task_ids = [
+                    row[0] for row in conn.execute(
+                        text("SELECT id FROM failed_site_monitor_tasks WHERE parent_task_id = :task_id"),
+                        {"task_id": task_id}
+                    ).fetchall()
+                ]
+                logger.info(f"找到失败监控任务: {len(failed_task_ids)} 个")
+                
+                # 3. 删除失败监控任务与网站的关联记录
+                for failed_task_id in failed_task_ids:
+                    result = conn.execute(
+                        text("DELETE FROM failed_site_monitor_websites WHERE monitor_task_id = :failed_task_id"),
+                        {"failed_task_id": failed_task_id}
+                    )
+                    logger.info(f"删除失败监控任务 {failed_task_id} 的网站关联: {result.rowcount} 条")
+                
+                # 4. 删除失败网站监控任务
+                if failed_task_ids:
+                    result = conn.execute(
+                        text("DELETE FROM failed_site_monitor_tasks WHERE parent_task_id = :task_id"),
+                        {"task_id": task_id}
+                    )
+                    logger.info(f"删除失败监控任务: {result.rowcount} 条")
+                
+                # 5. 删除检测记录
+                result = conn.execute(
+                    text("DELETE FROM detection_records WHERE task_id = :task_id"),
+                    {"task_id": task_id}
+                )
+                logger.info(f"删除检测记录: {result.rowcount} 条")
+                
+                # 6. 删除任务与网站的关联记录
+                result = conn.execute(
+                    text("DELETE FROM task_websites WHERE task_id = :task_id"),
+                    {"task_id": task_id}
+                )
+                logger.info(f"删除任务网站关联: {result.rowcount} 条")
+                
+                # 7. 删除任务本身
+                result = conn.execute(
+                    text("DELETE FROM detection_tasks WHERE id = :task_id"),
+                    {"task_id": task_id}
+                )
+                logger.info(f"删除任务本身: {result.rowcount} 条")
+                
+                # 提交事务
+                trans.commit()
+                
+                logger.info(f"删除任务成功: {task_id}")
+                
                 return jsonify({
-                    'code': 404,
-                    'message': '任务不存在',
+                    'code': 200,
+                    'message': '删除任务成功',
                     'data': None
-                }), 404
-            
-            # 如果任务正在运行，先停止
-            if task.is_active:
-                scheduler = get_scheduler()
-                scheduler.stop_task(task.id)
-            
-            # 删除相关记录
-            db.query(DetectionRecord).filter(DetectionRecord.task_id == task_id).delete()
-            
-            # 删除任务
-            db.delete(task)
-            db.commit()
-            
-            logger.info(f"删除任务成功: {task_id}")
-            
-            return jsonify({
-                'code': 200,
-                'message': '删除任务成功',
-                'data': None
-            })
+                })
+                
+            except Exception as delete_error:
+                # 回滚事务
+                trans.rollback()
+                logger.error(f"删除事务回滚: {delete_error}")
+                raise delete_error
         
     except Exception as e:
         logger.error(f"删除任务失败: {e}")

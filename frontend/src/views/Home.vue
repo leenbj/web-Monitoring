@@ -335,23 +335,22 @@ export default {
     const startQuickDetection = async () => {
       quickDetecting.value = true
       try {
-        // 创建一次性检测任务
-        const websites = await websiteApi.getList({ per_page: 1000 })
-        const websiteIds = websites.data.websites.map(w => w.id)
+        // 获取现有的活跃任务
+        const tasksResponse = await taskApi.getList()
+        const activeTasks = tasksResponse.data.tasks.filter(task => task.is_active)
         
-        if (websiteIds.length === 0) {
-          throw new Error('没有可检测的网站')
+        if (activeTasks.length === 0) {
+          ElMessage.warning('没有活跃的检测任务，请先在任务管理中创建或启动任务')
+          return
         }
         
-        const task = await taskApi.create({
-          name: `快速检测_${Date.now()}`,
-          interval_minutes: 0, // 一次性任务
-          website_ids: websiteIds
-        })
+        // 选择第一个活跃任务进行立即执行
+        const selectedTask = activeTasks[0]
         
-        await taskApi.start(task.data.id)
+        // 立即执行选中的任务
+        await taskApi.start(selectedTask.id)
         
-        ElMessage.success('检测任务已启动，请稍后查看结果')
+        ElMessage.success(`正在执行任务：${selectedTask.name}，请稍后查看结果`)
         
         // 3秒后刷新数据
         setTimeout(() => {
@@ -359,7 +358,8 @@ export default {
         }, 3000)
         
       } catch (error) {
-        ElMessage.error('启动检测失败: ' + error.message)
+        console.error('启动检测失败:', error)
+        ElMessage.error('启动检测失败: ' + (error.response?.data?.message || error.message))
       } finally {
         quickDetecting.value = false
       }
@@ -425,9 +425,11 @@ export default {
     const checkWebsiteCount = async () => {
       try {
         const response = await websiteApi.getList({ per_page: 1 })
-        hasWebsites.value = response.data.total > 0
+        const total = response.data.pagination?.total || response.data.total || 0
+        hasWebsites.value = total > 0
       } catch (error) {
         console.error('检查网站数量失败:', error)
+        hasWebsites.value = false
       }
     }
 
@@ -631,6 +633,7 @@ export default {
 /* 检测按钮特殊效果 */
 .action-btn:not(.secondary) {
   background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  border: none;
   position: relative;
 }
 

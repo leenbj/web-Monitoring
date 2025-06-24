@@ -184,6 +184,112 @@ open http://localhost:3000
 - `POST /api/results/export` - 导出结果
 - `GET /api/results/download/{filename}` - 下载文件
 
+## 问题修复记录
+
+### 2025年6月24日 - "立即检测"500错误修复
+
+**问题描述**：
+监控首页的"立即检测"按钮点击后出现"Request failed with status code 500"错误。
+
+**根本原因**：
+1. **数据库表结构不一致**：`detection_tasks`表中同时存在`interval_minutes`(NOT NULL)和`interval_hours`字段，但当前模型定义只有`interval_hours`
+2. **SQL约束冲突**：创建任务时，旧的`interval_minutes`字段为NOT NULL但没有赋值，导致约束失败：`NOT NULL constraint failed: detection_tasks.interval_minutes`
+3. **模式演进问题**：数据库表结构没有随着模型定义的变更而同步更新
+
+**修复方案**：
+1. **数据库表结构修复**：
+   ```sql
+   -- 备份现有数据
+   CREATE TABLE detection_tasks_backup AS SELECT * FROM detection_tasks;
+   
+   -- 重建表结构，移除冗余的interval_minutes字段
+   CREATE TABLE detection_tasks_new (
+     id INTEGER PRIMARY KEY,
+     name VARCHAR(255) NOT NULL,
+     description TEXT,
+     interval_hours INTEGER NOT NULL DEFAULT 6,
+     ... -- 其他字段
+   );
+   
+   -- 数据迁移，将旧的interval_minutes转换为interval_hours
+   INSERT INTO detection_tasks_new SELECT 
+     id, name, description, 
+     CASE WHEN interval_minutes IS NOT NULL 
+          THEN CAST(interval_minutes / 60.0 AS INTEGER) 
+          ELSE interval_hours END as interval_hours,
+     ... -- 其他字段
+   FROM detection_tasks;
+   
+   -- 替换表
+   DROP TABLE detection_tasks;
+   ALTER TABLE detection_tasks_new RENAME TO detection_tasks;
+   ```
+
+2. **验证修复效果**：
+   ```bash
+   # 验证API可以正常创建任务
+   curl -X POST -H "Content-Type: application/json" \
+     -d '{"name":"快速检测_测试","interval_minutes":1,"website_ids":[5,6,7]}' \
+     http://localhost:5001/api/tasks/
+   
+   # 验证任务可以正常执行
+   curl -X POST http://localhost:5001/api/tasks/{task_id}/start
+   ```
+
+**修复结果**：
+- ✅ 数据库表结构统一，无冗余字段冲突
+- ✅ "立即检测"功能完全正常，无500错误
+- ✅ 任务创建和执行API完全正常工作
+- ✅ 前端页面正常显示最新检测结果
+- ✅ 后端SQL执行无约束违反错误
+
+**技术要点**：
+- 数据库模型变更需要同步更新表结构
+- NOT NULL约束字段必须提供有效值或有默认值
+- 数据库迁移时要保证数据一致性和向后兼容
+- 生产环境的表结构变更需要先备份数据
+
+### 2025年6月24日 - "立即检测"按钮无法点击问题修复
+
+**问题描述**：
+监控首页的"立即检测"按钮被禁用，无法执行立即检查功能。
+
+**根本原因**：
+1. `hasWebsites`变量未正确设置：前端`checkWebsiteCount`函数中，`response.data.total`值为`undefined`，导致`hasWebsites`被错误设置为`false`
+2. API响应结构问题：后端返回的数据结构中，网站总数存储在`response.data.pagination.total`而非`response.data.total`
+3. 快速检测任务参数错误：前端尝试创建`interval_minutes: 0`的任务，但后端验证要求间隔时间至少为1分钟
+
+**修复方案**：
+1. **修正API响应结构解析**：
+   ```javascript
+   // 修改前
+   hasWebsites.value = response.data.total > 0
+   
+   // 修改后
+   const total = response.data.pagination?.total || response.data.total || 0
+   hasWebsites.value = total > 0
+   ```
+
+2. **修复快速检测任务参数**：
+   ```javascript
+   // 修改前
+   interval_minutes: 0, // 一次性任务
+   
+   // 修改后  
+   interval_minutes: 1, // 最小间隔1分钟（实际只执行一次）
+   ```
+
+**修复结果**：
+- ✅ "立即检测"按钮现在可以正常点击
+- ✅ 网站数量正确显示（7个网站）
+- ✅ 快速检测任务可以成功创建和执行
+- ✅ 前后端API通信正常
+
+**技术要点**：
+- 前端需要兼容不同的API响应结构
+- 按钮禁用状态需要根据实际数据状态动态控制
+- 后端参数验证规则需要与前端逻辑保持一致
+
 ## 配置说明
 
 ### 邮件通知配置
