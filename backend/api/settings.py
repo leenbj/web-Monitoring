@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import SystemSetting
 from ..services.email_notification_service import EmailService
+from ..services.api_key_service import ApiKeyService
 
 import logging
 
@@ -345,5 +346,109 @@ def save_system_settings():
         return jsonify({
             'code': 500,
             'message': f'保存系统设置失败: {str(e)}',
+            'data': None
+        }), 500
+
+
+# ==================== Dify API密钥管理 ====================
+
+@bp.route('/dify-api-keys', methods=['GET'])
+def get_dify_api_keys():
+    """
+    获取所有Dify API密钥
+    """
+    try:
+        with get_db() as db:
+            api_key_service = ApiKeyService()
+            keys = api_key_service.get_api_keys(db)
+
+            return jsonify({
+                'code': 200,
+                'message': '获取API密钥列表成功',
+                'data': keys
+            })
+
+    except Exception as e:
+        logger.error(f"获取API密钥列表失败: {e}")
+        return jsonify({
+            'code': 500,
+            'message': f'获取API密钥列表失败: {str(e)}',
+            'data': None
+        }), 500
+
+
+@bp.route('/dify-api-keys', methods=['POST'])
+def create_dify_api_key():
+    """
+    创建新的Dify API密钥
+    """
+    try:
+        data = request.get_json()
+        name = data.get('name', 'Default API Key')
+
+        if not name or len(name.strip()) == 0:
+            return jsonify({
+                'code': 400,
+                'message': 'API密钥名称不能为空',
+                'data': None
+            }), 400
+
+        with get_db() as db:
+            api_key_service = ApiKeyService()
+
+            # 生成新密钥
+            key_result = api_key_service.generate_api_key(name.strip())
+
+            # 保存到数据库
+            key_id = api_key_service.save_api_key(db, key_result['key_info'])
+
+            return jsonify({
+                'code': 200,
+                'message': 'API密钥创建成功',
+                'data': {
+                    'id': key_id,
+                    'name': name.strip(),
+                    'api_key': key_result['api_key'],
+                    'created_at': key_result['key_info']['created_at'].isoformat()
+                }
+            })
+
+    except Exception as e:
+        logger.error(f"创建API密钥失败: {e}")
+        return jsonify({
+            'code': 500,
+            'message': f'创建API密钥失败: {str(e)}',
+            'data': None
+        }), 500
+
+
+@bp.route('/dify-api-keys/<int:key_id>', methods=['DELETE'])
+def delete_dify_api_key(key_id):
+    """
+    删除Dify API密钥
+    """
+    try:
+        with get_db() as db:
+            api_key_service = ApiKeyService()
+            success = api_key_service.delete_api_key(db, key_id)
+
+            if success:
+                return jsonify({
+                    'code': 200,
+                    'message': 'API密钥删除成功',
+                    'data': None
+                })
+            else:
+                return jsonify({
+                    'code': 404,
+                    'message': 'API密钥不存在',
+                    'data': None
+                }), 404
+
+    except Exception as e:
+        logger.error(f"删除API密钥失败: {e}")
+        return jsonify({
+            'code': 500,
+            'message': f'删除API密钥失败: {str(e)}',
             'data': None
         }), 500

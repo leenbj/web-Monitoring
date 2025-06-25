@@ -22,7 +22,7 @@ from backend.database import init_db, get_db
 from backend.utils.helpers import ensure_dir
 
 # 导入API蓝图
-from backend.api import websites, tasks, results, files, groups, performance, status_changes, settings, auth
+from backend.api import websites, tasks, results, files, groups, performance, status_changes, settings, auth, dify_api
 
 
 def create_app(config_class=Config):
@@ -141,7 +141,8 @@ def register_blueprints(app):
     app.register_blueprint(status_changes.bp)
     app.register_blueprint(settings.bp)
     app.register_blueprint(auth.bp)
-    
+    app.register_blueprint(dify_api.bp)
+
     logger.info("API蓝图注册完成")
 
 

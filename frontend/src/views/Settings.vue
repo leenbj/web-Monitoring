@@ -222,6 +222,175 @@
         </div>
       </el-form>
     </el-card>
+
+    <!-- Dify API配置 -->
+    <el-card class="settings-card" shadow="never">
+      <template #header>
+        <div class="card-header">
+          <el-icon><Tools /></el-icon>
+          <span>Dify API配置</span>
+        </div>
+      </template>
+
+      <div class="dify-api-section">
+        <div class="section-description">
+          <p>为Dify平台提供实时网址检测API接口，通过API密钥进行安全访问控制。</p>
+        </div>
+
+        <!-- API密钥列表 -->
+        <div class="api-keys-section">
+          <div class="section-header">
+            <h4>API密钥管理</h4>
+            <el-button type="primary" @click="showCreateKeyDialog = true" size="small">
+              <el-icon><Plus /></el-icon>
+              创建密钥
+            </el-button>
+          </div>
+
+          <el-table :data="apiKeys" style="width: 100%" v-loading="loadingKeys">
+            <el-table-column prop="name" label="密钥名称" min-width="150" />
+            <el-table-column prop="created_at" label="创建时间" width="180">
+              <template #default="scope">
+                {{ formatDate(scope.row.created_at) }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="last_used_at" label="最后使用" width="180">
+              <template #default="scope">
+                {{ scope.row.last_used_at ? formatDate(scope.row.last_used_at) : '从未使用' }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="usage_count" label="使用次数" width="100" />
+            <el-table-column label="状态" width="80">
+              <template #default="scope">
+                <el-tag :type="scope.row.is_active ? 'success' : 'danger'" size="small">
+                  {{ scope.row.is_active ? '活跃' : '禁用' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="120">
+              <template #default="scope">
+                <el-button
+                  type="danger"
+                  size="small"
+                  @click="deleteApiKey(scope.row)"
+                  :loading="deletingKeyId === scope.row.id"
+                >
+                  删除
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+
+          <div v-if="apiKeys.length === 0 && !loadingKeys" class="empty-state">
+            <el-empty description="暂无API密钥">
+              <el-button type="primary" @click="showCreateKeyDialog = true">创建第一个密钥</el-button>
+            </el-empty>
+          </div>
+        </div>
+
+        <!-- API使用说明 -->
+        <div class="api-docs-section">
+          <h4>API使用说明</h4>
+          <div class="api-info">
+            <div class="api-endpoint">
+              <h5>接口地址</h5>
+              <el-input
+                :value="apiBaseUrl + '/api/dify/check-website'"
+                readonly
+                class="endpoint-input"
+              >
+                <template #append>
+                  <el-button @click="copyToClipboard(apiBaseUrl + '/api/dify/check-website')">
+                    复制
+                  </el-button>
+                </template>
+              </el-input>
+            </div>
+
+            <div class="api-example">
+              <h5>请求示例</h5>
+              <pre class="code-block">{{ apiExample }}</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </el-card>
+
+    <!-- 创建API密钥对话框 -->
+    <el-dialog
+      v-model="showCreateKeyDialog"
+      title="创建API密钥"
+      width="500px"
+      :close-on-click-modal="false"
+    >
+      <el-form :model="newKeyForm" label-width="100px">
+        <el-form-item label="密钥名称" required>
+          <el-input
+            v-model="newKeyForm.name"
+            placeholder="请输入密钥名称，如：Dify生产环境"
+            maxlength="50"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="showCreateKeyDialog = false">取消</el-button>
+        <el-button
+          type="primary"
+          @click="createApiKey"
+          :loading="creatingKey"
+          :disabled="!newKeyForm.name.trim()"
+        >
+          创建密钥
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 显示新创建的API密钥 -->
+    <el-dialog
+      v-model="showNewKeyDialog"
+      title="API密钥创建成功"
+      width="600px"
+      :close-on-click-modal="false"
+      :show-close="false"
+    >
+      <div class="new-key-content">
+        <el-alert
+          title="重要提示"
+          type="warning"
+          :closable="false"
+          show-icon
+        >
+          <template #default>
+            请立即复制并保存您的API密钥，关闭此对话框后将无法再次查看完整密钥。
+          </template>
+        </el-alert>
+
+        <div class="key-display">
+          <label>API密钥：</label>
+          <el-input
+            :value="newApiKey"
+            readonly
+            type="textarea"
+            :rows="3"
+            class="key-input"
+          >
+            <template #append>
+              <el-button @click="copyToClipboard(newApiKey)">
+                复制密钥
+              </el-button>
+            </template>
+          </el-input>
+        </div>
+      </div>
+
+      <template #footer>
+        <el-button type="primary" @click="closeNewKeyDialog">
+          我已保存密钥
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -258,6 +427,32 @@ export default {
     const quickTesting = ref(false)
     const sendingTest = ref(false)
     const savingSystem = ref(false)
+
+    // Dify API相关状态
+    const apiKeys = ref([])
+    const loadingKeys = ref(false)
+    const showCreateKeyDialog = ref(false)
+    const showNewKeyDialog = ref(false)
+    const creatingKey = ref(false)
+    const deletingKeyId = ref(null)
+    const newApiKey = ref('')
+    const newKeyForm = reactive({
+      name: ''
+    })
+
+    // API基础URL
+    const apiBaseUrl = window.location.origin
+
+    // API使用示例
+    const apiExample = `POST ${apiBaseUrl}/api/dify/check-website
+Content-Type: application/json
+Authorization: Bearer your_api_key
+
+{
+  "url": "https://example.com",
+  "timeout": 10,
+  "retry_times": 1
+}`
 
     // 邮件设置
     const emailSettings = reactive({
@@ -538,8 +733,119 @@ export default {
       }
     }
 
+    // ==================== Dify API管理 ====================
+
+    // 加载API密钥列表
+    const loadApiKeys = async () => {
+      try {
+        loadingKeys.value = true
+        const response = await settingsApi.getDifyApiKeys()
+        if (response.success) {
+          apiKeys.value = response.data || []
+        } else {
+          ElMessage.error('加载API密钥列表失败: ' + response.message)
+        }
+      } catch (error) {
+        console.error('加载API密钥列表失败:', error)
+        ElMessage.error('加载API密钥列表失败: ' + error.message)
+      } finally {
+        loadingKeys.value = false
+      }
+    }
+
+    // 创建API密钥
+    const createApiKey = async () => {
+      try {
+        if (!newKeyForm.name.trim()) {
+          ElMessage.warning('请输入密钥名称')
+          return
+        }
+
+        creatingKey.value = true
+        const response = await settingsApi.createDifyApiKey({
+          name: newKeyForm.name.trim()
+        })
+
+        if (response.success) {
+          newApiKey.value = response.data.api_key
+          showCreateKeyDialog.value = false
+          showNewKeyDialog.value = true
+          newKeyForm.name = ''
+
+          // 重新加载密钥列表
+          await loadApiKeys()
+
+          ElMessage.success('API密钥创建成功')
+        } else {
+          ElMessage.error('创建API密钥失败: ' + response.message)
+        }
+      } catch (error) {
+        console.error('创建API密钥失败:', error)
+        ElMessage.error('创建API密钥失败: ' + error.message)
+      } finally {
+        creatingKey.value = false
+      }
+    }
+
+    // 删除API密钥
+    const deleteApiKey = async (key) => {
+      try {
+        await ElMessageBox.confirm(
+          `确定要删除API密钥 "${key.name}" 吗？删除后将无法恢复。`,
+          '确认删除',
+          {
+            confirmButtonText: '确定删除',
+            cancelButtonText: '取消',
+            type: 'warning',
+          }
+        )
+
+        deletingKeyId.value = key.id
+        const response = await settingsApi.deleteDifyApiKey(key.id)
+
+        if (response.success) {
+          ElMessage.success('API密钥删除成功')
+          await loadApiKeys()
+        } else {
+          ElMessage.error('删除API密钥失败: ' + response.message)
+        }
+      } catch (error) {
+        if (error !== 'cancel') {
+          console.error('删除API密钥失败:', error)
+          ElMessage.error('删除API密钥失败: ' + error.message)
+        }
+      } finally {
+        deletingKeyId.value = null
+      }
+    }
+
+    // 关闭新密钥对话框
+    const closeNewKeyDialog = () => {
+      showNewKeyDialog.value = false
+      newApiKey.value = ''
+    }
+
+    // 复制到剪贴板
+    const copyToClipboard = async (text) => {
+      try {
+        await navigator.clipboard.writeText(text)
+        ElMessage.success('已复制到剪贴板')
+      } catch (error) {
+        console.error('复制失败:', error)
+        ElMessage.error('复制失败，请手动复制')
+      }
+    }
+
+    // 格式化日期
+    const formatDate = (dateString) => {
+      if (!dateString) return ''
+      const date = new Date(dateString)
+      return date.toLocaleString('zh-CN')
+    }
+
     onMounted(() => {
       loadSettings()
+      loadApiKeys()
     })
 
     return {
@@ -558,7 +864,25 @@ export default {
       addRecipient,
       removeRecipient,
       resetEmailSettings,
-      updateEmailSettings
+      updateEmailSettings,
+
+      // Dify API相关
+      apiKeys,
+      loadingKeys,
+      showCreateKeyDialog,
+      showNewKeyDialog,
+      creatingKey,
+      deletingKeyId,
+      newApiKey,
+      newKeyForm,
+      apiBaseUrl,
+      apiExample,
+      loadApiKeys,
+      createApiKey,
+      deleteApiKey,
+      closeNewKeyDialog,
+      copyToClipboard,
+      formatDate
     }
   }
 }
@@ -702,5 +1026,109 @@ export default {
   padding: 10px 20px;
   border-radius: 6px;
   font-weight: 500;
+}
+
+/* Dify API配置样式 */
+.dify-api-section {
+  padding: 20px 0;
+}
+
+.section-description {
+  margin-bottom: 24px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  color: #6b7280;
+  line-height: 1.6;
+}
+
+.api-keys-section {
+  margin-bottom: 32px;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.section-header h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.empty-state {
+  padding: 40px 0;
+  text-align: center;
+}
+
+.api-docs-section h4 {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.api-info {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.api-endpoint {
+  margin-bottom: 20px;
+}
+
+.api-endpoint h5 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.endpoint-input {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+.api-example h5 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.code-block {
+  background: #1f2937;
+  color: #f9fafb;
+  padding: 16px;
+  border-radius: 6px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-x: auto;
+  margin: 0;
+  white-space: pre;
+}
+
+.new-key-content {
+  padding: 16px 0;
+}
+
+.key-display {
+  margin-top: 20px;
+}
+
+.key-display label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.key-input {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
 }
 </style>

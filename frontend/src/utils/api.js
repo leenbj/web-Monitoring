@@ -331,7 +331,12 @@ export const settingsApi = {
   getSystemSettings: () => api.get('/settings/system'),
 
   // 保存系统设置
-  saveSystemSettings: (data) => api.post('/settings/system', data)
+  saveSystemSettings: (data) => api.post('/settings/system', data),
+
+  // Dify API密钥管理
+  getDifyApiKeys: () => api.get('/settings/dify-api-keys'),
+  createDifyApiKey: (data) => api.post('/settings/dify-api-keys', data),
+  deleteDifyApiKey: (keyId) => api.delete(`/settings/dify-api-keys/${keyId}`)
 }
 
 export const userApi = {
