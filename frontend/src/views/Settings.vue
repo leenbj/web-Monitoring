@@ -127,6 +127,10 @@
             <el-icon><Promotion /></el-icon>
             测试连接
           </el-button>
+          <el-button type="info" @click="quickTestConnection" :loading="quickTesting" size="small">
+            <el-icon><Lightning /></el-icon>
+            快速测试(587)
+          </el-button>
           <el-button @click="sendTestEmail" :loading="sendingTest">
             <el-icon><Message /></el-icon>
             发送测试邮件
@@ -135,6 +139,28 @@
             <el-icon><RefreshLeft /></el-icon>
             重置
           </el-button>
+        </div>
+
+        <!-- 连接提示 -->
+        <div class="connection-tips">
+          <el-alert
+            title="连接测试说明"
+            type="info"
+            :closable="false"
+            show-icon
+          >
+            <template #default>
+              <div class="tips-content">
+                <p><strong>如果连接测试失败，请尝试以下解决方案：</strong></p>
+                <ul>
+                  <li><strong>腾讯企业邮箱</strong>：推荐使用587端口 + 关闭SSL</li>
+                  <li><strong>网络问题</strong>：检查防火墙是否允许SMTP连接</li>
+                  <li><strong>认证问题</strong>：确认使用授权码而非登录密码</li>
+                  <li><strong>端口问题</strong>：尝试587(STARTTLS)或465(SSL)端口</li>
+                </ul>
+              </div>
+            </template>
+          </el-alert>
         </div>
       </div>
 
@@ -202,14 +228,15 @@
 <script>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { 
-  Message, 
-  Delete, 
-  Plus, 
-  Check, 
-  Promotion, 
+import {
+  Message,
+  Delete,
+  Plus,
+  Check,
+  Promotion,
   RefreshLeft,
-  Tools
+  Tools,
+  Lightning
 } from '@element-plus/icons-vue'
 import { settingsApi } from '../utils/api'
 
@@ -222,11 +249,13 @@ export default {
     Check,
     Promotion,
     RefreshLeft,
-    Tools
+    Tools,
+    Lightning
   },
   setup() {
     const saving = ref(false)
     const testing = ref(false)
+    const quickTesting = ref(false)
     const sendingTest = ref(false)
     const savingSystem = ref(false)
 
@@ -300,11 +329,13 @@ export default {
         if (response.success) {
           ElMessage.success('邮件设置保存成功')
         } else {
-          throw new Error(response.message || '保存失败')
+          // 如果后端返回业务失败，直接使用后端的错误信息
+          ElMessage.error(`保存失败: ${response.message || '未知错误'}`)
         }
       } catch (error) {
+        // 如果发生网络层或代码异常，捕获并显示
         console.error('保存邮件设置失败:', error)
-        ElMessage.error('保存失败: ' + (error.message || '未知错误'))
+        ElMessage.error('保存失败: ' + (error.message || '网络或程序异常'))
       } finally {
         saving.value = false
       }
@@ -331,18 +362,112 @@ export default {
     // 测试邮箱连接
     const testEmailConnection = async () => {
       try {
+        // 验证必填字段
+        if (!emailSettings.smtp_host || !emailSettings.from_email || !emailSettings.from_password) {
+          ElMessage.warning('请先填写SMTP服务器、发件邮箱和密码')
+          return
+        }
+        
         testing.value = true
         const response = await settingsApi.testEmailConnection(emailSettings)
+        
         if (response.success) {
           ElMessage.success('SMTP连接测试成功')
         } else {
-          throw new Error(response.message || '连接测试失败')
+          // 从后端响应中获取详细错误信息
+          const errorMsg = response.message || '连接测试失败，未返回具体错误'
+
+          // 提供更友好的错误提示和解决建议
+          let friendlyMessage = `连接测试失败: ${errorMsg}`
+          let suggestions = []
+
+          if (errorMsg.includes('timed out') || errorMsg.includes('超时')) {
+            suggestions.push('• 检查网络连接是否正常')
+            suggestions.push('• 确认防火墙允许SMTP连接')
+            suggestions.push('• 尝试使用587端口并关闭SSL')
+          }
+
+          if (errorMsg.includes('Connection refused') || errorMsg.includes('拒绝连接')) {
+            suggestions.push('• 检查SMTP服务器地址是否正确')
+            suggestions.push('• 确认端口号是否正确')
+            suggestions.push('• 联系邮箱服务商确认SMTP服务状态')
+          }
+
+          if (errorMsg.includes('认证失败') || errorMsg.includes('authentication')) {
+            suggestions.push('• 检查邮箱地址是否正确')
+            suggestions.push('• 确认使用的是授权码而非登录密码')
+            suggestions.push('• 确认邮箱已开启SMTP服务')
+          }
+
+          if (suggestions.length > 0) {
+            friendlyMessage += '\n\n建议解决方案:\n' + suggestions.join('\n')
+          }
+
+          ElMessage({
+            message: friendlyMessage,
+            type: 'error',
+            duration: 10000, // 10秒显示时间
+            showClose: true,
+            dangerouslyUseHTMLString: false
+          })
         }
       } catch (error) {
-        console.error('测试邮箱连接失败:', error)
-        ElMessage.error('连接测试失败: ' + (error.message || '未知错误'))
+        // 处理网络层或拦截器抛出的错误
+        const errorMsg = error.message || '发生未知网络错误'
+        ElMessage({
+          message: `连接测试失败: ${errorMsg}`,
+          type: 'error',
+          duration: 7000,
+          showClose: true,
+        })
       } finally {
         testing.value = false
+      }
+    }
+
+    // 快速测试连接（使用587端口）
+    const quickTestConnection = async () => {
+      try {
+        // 验证必填字段
+        if (!emailSettings.smtp_host || !emailSettings.from_email || !emailSettings.from_password) {
+          ElMessage.warning('请先填写SMTP服务器、发件邮箱和密码')
+          return
+        }
+
+        quickTesting.value = true
+
+        // 使用587端口和STARTTLS进行快速测试
+        const testConfig = {
+          smtp_host: emailSettings.smtp_host,
+          smtp_port: 587,
+          from_email: emailSettings.from_email,
+          from_password: emailSettings.from_password,
+          use_ssl: false // 587端口通常使用STARTTLS
+        }
+
+        const response = await settingsApi.testEmailConnection(testConfig)
+
+        if (response.success) {
+          ElMessage.success('快速测试成功！建议使用587端口配置')
+        } else {
+          const errorMsg = response.message || '快速测试失败'
+          ElMessage({
+            message: `快速测试失败: ${errorMsg}`,
+            type: 'warning',
+            duration: 5000,
+            showClose: true,
+          })
+        }
+      } catch (error) {
+        const errorMsg = error.message || '发生未知网络错误'
+        ElMessage({
+          message: `快速测试失败: ${errorMsg}`,
+          type: 'warning',
+          duration: 5000,
+          showClose: true,
+        })
+      } finally {
+        quickTesting.value = false
       }
     }
 
@@ -420,6 +545,7 @@ export default {
     return {
       saving,
       testing,
+      quickTesting,
       sendingTest,
       savingSystem,
       emailSettings,
@@ -427,6 +553,7 @@ export default {
       saveEmailSettings,
       saveSystemSettings,
       testEmailConnection,
+      quickTestConnection,
       sendTestEmail,
       addRecipient,
       removeRecipient,
@@ -507,6 +634,21 @@ export default {
   border-top: 1px solid #e5e7eb;
   display: flex;
   gap: 12px;
+  flex-wrap: wrap;
+}
+
+.connection-tips {
+  margin-top: 20px;
+}
+
+.tips-content ul {
+  margin: 10px 0 0 0;
+  padding-left: 20px;
+}
+
+.tips-content li {
+  margin-bottom: 5px;
+  line-height: 1.5;
 }
 
 .email-disabled {

@@ -8,19 +8,24 @@
     "build": "vite build",
     "preview": "vite preview"
   },
-  "keywords": ["website-monitor", "vue", "element-plus"],
+  "keywords": [
+    "website-monitor",
+    "vue",
+    "element-plus"
+  ],
   "author": "",
   "license": "MIT",
   "description": "网址监控工具前端界面",
   "dependencies": {
-    "vue": "^3.4.0",
-    "vue-router": "^4.2.0",
+    "@element-plus/icons-vue": "^2.3.0",
     "axios": "^1.6.0",
     "element-plus": "^2.4.0",
-    "@element-plus/icons-vue": "^2.3.0"
+    "pinia": "^3.0.3",
+    "vue": "^3.4.0",
+    "vue-router": "^4.2.0"
   },
   "devDependencies": {
-    "vite": "^6.0.0",
-    "@vitejs/plugin-vue": "^5.0.0"
+    "@vitejs/plugin-vue": "^5.0.0",
+    "vite": "^6.0.0"
   }
 }

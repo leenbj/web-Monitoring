@@ -83,8 +83,21 @@ class SchedulerService:
                 # 执行文件清理调度
                 self._schedule_file_cleanup(current_time)
                 
-                # 分段休眠，进一步减少检查频率（从60秒增加到180秒，分为6次30秒）
-                for i in range(6):
+                # 自适应休眠策略 - 根据任务活跃度调整检查频率
+                active_task_count = len(self.running_tasks)
+                if active_task_count == 0:
+                    # 无活跃任务时，延长休眠时间到5分钟
+                    sleep_interval = 300
+                elif active_task_count > 2:
+                    # 高负载时，缩短检查间隔到1分钟
+                    sleep_interval = 60
+                else:
+                    # 正常负载，3分钟检查间隔
+                    sleep_interval = 180
+                
+                # 分段休眠，保持响应性
+                sleep_chunks = max(1, sleep_interval // 30)
+                for i in range(sleep_chunks):
                     if self._shutdown:
                         break
                     time.sleep(30)

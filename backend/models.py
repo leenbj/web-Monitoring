@@ -92,7 +92,6 @@ class Website(db.Model):
             'description': self.description,
             'group_id': self.group_id,
             'group_name': self.group.name if self.group else None,
-            'group_color': self.group.color if self.group else None,
             'is_active': self.is_active,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
@@ -458,7 +457,49 @@ class FailedSiteMonitorTask(db.Model):
         }
 
 
+# 用户管理相关模型
 
+class User(Base):
+    """用户模型"""
+    __tablename__ = 'users'
+    
+    id = db.Column(db.Integer, primary_key=True, index=True)
+    username = db.Column(db.String(50), unique=True, nullable=False, index=True)
+    password_hash = db.Column(db.String(128), nullable=False)
+    email = db.Column(db.String(100), unique=True, nullable=False, index=True)
+    real_name = db.Column(db.String(100), nullable=False)
+    role = db.Column(db.String(20), nullable=False, default='user')  # admin, user
+    status = db.Column(db.String(20), nullable=False, default='active')  # active, inactive, locked
+    last_login_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=get_beijing_time)
+    updated_at = db.Column(db.DateTime, default=get_beijing_time, onupdate=get_beijing_time)
+    
+    def set_password(self, password: str):
+        """设置密码"""
+        from werkzeug.security import generate_password_hash
+        self.password_hash = generate_password_hash(password)
+    
+    def check_password(self, password: str) -> bool:
+        """检查密码"""
+        from werkzeug.security import check_password_hash
+        return check_password_hash(self.password_hash, password)
+    
+    def to_dict(self) -> dict:
+        """转换为字典"""
+        return {
+            'id': self.id,
+            'username': self.username,
+            'email': self.email,
+            'real_name': self.real_name,
+            'role': self.role,
+            'status': self.status,
+            'last_login_at': self.last_login_at.isoformat() if self.last_login_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+    
+    def __repr__(self):
+        return f'<User {self.username}>'
 
 
 def init_db(app):

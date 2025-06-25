@@ -9,6 +9,7 @@ import atexit
 from datetime import datetime
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+from flask_jwt_extended import JWTManager
 import logging
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ from backend.database import init_db, get_db
 from backend.utils.helpers import ensure_dir
 
 # 导入API蓝图
-from backend.api import websites, tasks, results, files, groups, performance, status_changes, settings
+from backend.api import websites, tasks, results, files, groups, performance, status_changes, settings, auth
 
 
 def create_app(config_class=Config):
@@ -30,6 +31,9 @@ def create_app(config_class=Config):
     # 创建Flask应用实例
     app = Flask(__name__)
     app.config.from_object(config_class)
+    
+    # 配置JWT
+    setup_jwt(app)
     
     # 配置CORS
     CORS(app, resources={
@@ -136,6 +140,7 @@ def register_blueprints(app):
     app.register_blueprint(performance.performance_bp)
     app.register_blueprint(status_changes.bp)
     app.register_blueprint(settings.bp)
+    app.register_blueprint(auth.bp)
     
     logger.info("API蓝图注册完成")
 
@@ -300,6 +305,25 @@ def start_scheduler_service(app):
         
     except Exception as e:
         logger.error(f"启动调度器服务失败: {e}")
+
+
+def setup_jwt(app):
+    """配置JWT"""
+    # 设置JWT密钥
+    app.config['JWT_SECRET_KEY'] = app.config.get('JWT_SECRET_KEY', 'your-secret-key-change-it-in-production')
+    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = False  # 不自动过期，由前端控制
+    
+    # 初始化JWT管理器
+    jwt = JWTManager(app)
+    
+    # 设置JWT在黑名单中的回调
+    @jwt.token_in_blocklist_loader
+    def check_if_token_revoked(jwt_header, jwt_payload):
+        from backend.api.auth import blacklisted_tokens
+        jti = jwt_payload['jti']
+        return jti in blacklisted_tokens
+    
+    return jwt
 
 
 # 创建应用实例

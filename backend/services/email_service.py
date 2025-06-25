@@ -13,9 +13,8 @@ from typing import List, Optional, Dict, Any
 import os
 from datetime import datetime
 
-# 配置日志
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# 获取应用的logger
+logger = logging.getLogger('backend.services.email_service')
 
 class EmailService:
     """邮件服务类"""
@@ -49,17 +48,44 @@ class EmailService:
             bool: 是否连接成功
         """
         try:
-            if self.config['use_tls']:
-                self.smtp_server = smtplib.SMTP(
-                    self.config['smtp_server'], 
-                    self.config['smtp_port']
-                )
-                self.smtp_server.starttls()
+            smtp_port = self.config['smtp_port']
+            smtp_server = self.config['smtp_server']
+            
+            # 根据端口选择连接方式
+            if smtp_port == 465:
+                # 465端口使用SSL连接
+                logger.info(f"使用SSL连接: {smtp_server}:{smtp_port}")
+                try:
+                    self.smtp_server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=30)
+                except Exception as ssl_e:
+                    logger.warning(f"默认SSL配置失败，尝试自定义SSL配置: {ssl_e}")
+                    import ssl
+                    context = ssl.create_default_context()
+                    context.check_hostname = False
+                    context.verify_mode = ssl.CERT_NONE
+                    self.smtp_server = smtplib.SMTP_SSL(smtp_server, smtp_port, context=context, timeout=30)
+            elif smtp_port == 587:
+                # 587端口使用STARTTLS
+                logger.info(f"使用STARTTLS连接: {smtp_server}:{smtp_port}")
+                self.smtp_server = smtplib.SMTP(smtp_server, smtp_port, timeout=30)
+                import ssl
+                context = ssl.create_default_context()
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
+                self.smtp_server.starttls(context=context)
+            elif self.config.get('use_tls', False):
+                # 其他端口，根据use_tls配置使用STARTTLS
+                logger.info(f"使用STARTTLS连接: {smtp_server}:{smtp_port}")
+                self.smtp_server = smtplib.SMTP(smtp_server, smtp_port, timeout=30)
+                import ssl
+                context = ssl.create_default_context()
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
+                self.smtp_server.starttls(context=context)
             else:
-                self.smtp_server = smtplib.SMTP_SSL(
-                    self.config['smtp_server'], 
-                    self.config['smtp_port']
-                )
+                # 默认使用SSL连接
+                logger.info(f"使用SSL连接: {smtp_server}:{smtp_port}")
+                self.smtp_server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=30)
             
             if self.config['username'] and self.config['password']:
                 self.smtp_server.login(
@@ -71,8 +97,12 @@ class EmailService:
             return True
             
         except Exception as e:
-            logger.error(f"SMTP服务器连接失败: {e}")
-            return False
+            error_msg = str(e)
+            logger.error(f"SMTP服务器连接失败: {error_msg}")
+            logger.error(f"异常类型: {type(e).__name__}")
+            logger.error(f"连接配置: host={self.config.get('smtp_server')}, port={self.config.get('smtp_port')}")
+            # 重新抛出异常，让上层能获取具体错误信息
+            raise e
     
     def disconnect(self):
         """断开SMTP连接"""
@@ -409,30 +439,75 @@ class EmailService:
         
         return html
     
-    def test_connection(self) -> bool:
+    def test_connection(
+        self, 
+        smtp_host: str = None,
+        smtp_port: int = None,
+        from_email: str = None,
+        from_password: str = None,
+        use_ssl: bool = None
+    ) -> bool:
         """
         测试邮件服务连接
         
+        Args:
+            smtp_host: SMTP服务器地址
+            smtp_port: SMTP端口
+            from_email: 发件人邮箱
+            from_password: 邮箱密码
+            use_ssl: 是否使用SSL
+            
         Returns:
             bool: 连接是否成功
         """
         try:
-            if not self.config['from_email']:
-                logger.error("邮件配置不完整")
+            # 使用传入的参数或默认配置
+            test_config = self.config.copy()
+            if smtp_host:
+                test_config['smtp_server'] = smtp_host
+            if smtp_port:
+                test_config['smtp_port'] = smtp_port
+            if from_email:
+                test_config['from_email'] = from_email
+                test_config['username'] = from_email
+            if from_password:
+                test_config['password'] = from_password
+            if use_ssl is not None:
+                # 根据端口和SSL设置决定使用TLS还是SSL
+                if smtp_port == 587:
+                    test_config['use_tls'] = use_ssl
+                elif smtp_port == 465:
+                    # 465端口固定使用SSL，不需要设置use_tls
+                    pass
+                else:
+                    test_config['use_tls'] = use_ssl
+            
+            # 验证必要参数
+            if not test_config.get('smtp_server') or not test_config.get('from_email'):
+                logger.error("SMTP服务器或发件人邮箱未配置")
                 return False
             
-            success = self.connect()
-            if success:
+            # 临时保存原配置
+            original_config = self.config
+            self.config = test_config
+            
+            try:
+                self.connect()
                 self.disconnect()
                 logger.info("邮件服务连接测试成功")
-            else:
-                logger.error("邮件服务连接测试失败")
-            
-            return success
+                return True
+            except Exception as connect_error:
+                logger.error(f"邮件服务连接测试失败: {connect_error}")
+                # 重新抛出异常，让API层能获取具体错误信息
+                raise connect_error
+            finally:
+                # 恢复原配置
+                self.config = original_config
             
         except Exception as e:
             logger.error(f"邮件服务连接测试异常: {e}")
-            return False
+            # 重新抛出异常，让API层能获取具体错误信息
+            raise e
 
 # 全局邮件服务实例
 email_service = EmailService() 

@@ -4,7 +4,7 @@ import { ElMessage } from 'element-plus'
 // 创建axios实例
 const api = axios.create({
   baseURL: '/api',
-  timeout: 30000,
+  timeout: 65000,
   headers: {
     'Content-Type': 'application/json'
   }
@@ -13,6 +13,11 @@ const api = axios.create({
 // 请求拦截器
 api.interceptors.request.use(
   config => {
+    // 从localStorage获取token并添加到请求头
+    const token = localStorage.getItem('auth_token')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
     return config
   },
   error => {
@@ -20,31 +25,126 @@ api.interceptors.request.use(
   }
 )
 
+// 用于避免重复刷新token的标志
+let isRefreshing = false
+let failedQueue = []
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach(prom => {
+    if (error) {
+      prom.reject(error)
+    } else {
+      prom.resolve(token)
+    }
+  })
+  
+  failedQueue = []
+}
+
 // 响应拦截器
 api.interceptors.response.use(
   response => {
     const { data } = response
-    
+
     // 如果返回的状态码为200，说明请求成功
     if (data.code === 200) {
-      return data
+      return { success: true, ...data }
     } else {
-      // 显示错误消息
-      ElMessage.error(data.message || '请求失败')
-      return Promise.reject(new Error(data.message || '请求失败'))
+      // 不自动显示错误消息，让调用方处理
+      return { success: false, ...data }
     }
   },
-  error => {
+  async error => {
+    const originalRequest = error.config
+    
     // 处理HTTP错误
     let message = '网络错误'
     
     if (error.response) {
+      const { data } = error.response
+      
+      // 如果是400或500错误且有JSON响应，返回响应数据让调用方处理
+      if ((error.response.status === 400 || error.response.status === 500) && data && data.code) {
+        return Promise.resolve({ success: false, ...data })
+      }
+      
+      // 处理401 token过期
+      if (error.response.status === 401 && !originalRequest._retry) {
+        if (isRefreshing) {
+          // 如果正在刷新token，将请求加入队列
+          return new Promise((resolve, reject) => {
+            failedQueue.push({ resolve, reject })
+          }).then(token => {
+            originalRequest.headers.Authorization = `Bearer ${token}`
+            return api(originalRequest)
+          }).catch(err => {
+            return Promise.reject(err)
+          })
+        }
+
+        originalRequest._retry = true
+        isRefreshing = true
+
+        const refreshToken = localStorage.getItem('refresh_token')
+        
+        if (refreshToken) {
+          try {
+            const response = await axios.post('/api/auth/refresh', {}, {
+              headers: {
+                'Authorization': `Bearer ${refreshToken}`
+              }
+            })
+
+            if (response.data.code === 200) {
+              const { access_token } = response.data.data
+              localStorage.setItem('auth_token', access_token)
+              api.defaults.headers.common['Authorization'] = `Bearer ${access_token}`
+              
+              processQueue(null, access_token)
+              
+              // 重试原始请求
+              originalRequest.headers.Authorization = `Bearer ${access_token}`
+              return api(originalRequest)
+            } else {
+              throw new Error('Token刷新失败')
+            }
+          } catch (refreshError) {
+            processQueue(refreshError, null)
+            
+            // 刷新失败，清除认证信息并跳转到登录页
+            localStorage.removeItem('auth_token')
+            localStorage.removeItem('refresh_token')
+            localStorage.removeItem('user_info')
+            delete api.defaults.headers.common['Authorization']
+            
+            // 跳转到登录页
+            if (window.location.pathname !== '/login') {
+              window.location.href = '/login'
+            }
+            
+            return Promise.reject(refreshError)
+          } finally {
+            isRefreshing = false
+          }
+        } else {
+          // 没有refresh token，直接跳转到登录页
+          localStorage.removeItem('auth_token')
+          localStorage.removeItem('refresh_token')
+          localStorage.removeItem('user_info')
+          delete api.defaults.headers.common['Authorization']
+          
+          if (window.location.pathname !== '/login') {
+            window.location.href = '/login'
+          }
+        }
+      }
+      
       switch (error.response.status) {
         case 400:
           message = '请求参数错误'
           break
         case 401:
-          message = '未授权'
+          message = '登录已过期，请重新登录'
           break
         case 403:
           message = '拒绝访问'
@@ -62,7 +162,10 @@ api.interceptors.response.use(
       message = '网络连接失败'
     }
     
-    ElMessage.error(message)
+    // 对于401错误，不显示错误消息（因为会自动跳转登录）
+    if (error.response?.status !== 401) {
+      ElMessage.error(message)
+    }
     return Promise.reject(error)
   }
 )
@@ -214,21 +317,44 @@ export const statusChangeApi = {
 export const settingsApi = {
   // 获取邮件设置
   getEmailSettings: () => api.get('/settings/email'),
-  
+
   // 保存邮件设置
   saveEmailSettings: (data) => api.post('/settings/email', data),
-  
+
   // 测试邮箱连接
   testEmailConnection: (data) => api.post('/settings/email/test-connection', data),
-  
+
   // 发送测试邮件
   sendTestEmail: () => api.post('/settings/email/test-send'),
-  
+
   // 获取系统设置
   getSystemSettings: () => api.get('/settings/system'),
-  
+
   // 保存系统设置
   saveSystemSettings: (data) => api.post('/settings/system', data)
 }
 
-export default api 
+export const userApi = {
+  // 获取用户列表（仅管理员）
+  getList: (params) => api.get('/auth/users', { params }),
+
+  // 创建用户（仅管理员）
+  create: (data) => api.post('/auth/users', data),
+
+  // 获取当前用户信息
+  getCurrentUser: () => api.get('/auth/me'),
+
+  // 更新用户信息
+  update: (id, data) => api.put(`/auth/users/${id}`, data),
+
+  // 删除用户（仅管理员）
+  delete: (id) => api.delete(`/auth/users/${id}`),
+
+  // 修改密码
+  changePassword: (id, data) => api.put(`/auth/users/${id}`, data),
+
+  // 重置密码（仅管理员）
+  resetPassword: (id, data) => api.put(`/auth/users/${id}`, data)
+}
+
+export default api

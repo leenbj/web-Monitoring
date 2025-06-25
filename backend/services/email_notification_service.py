@@ -6,6 +6,8 @@
 import smtplib
 import json
 import logging
+import ssl
+import socket
 from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -101,23 +103,289 @@ class EmailService:
             
         Returns:
             连接是否成功
+            
+        Raises:
+            Exception: 连接失败时抛出具体的异常信息
         """
+        server = None
         try:
-            if use_ssl:
-                server = smtplib.SMTP_SSL(smtp_host, smtp_port)
+            logger.info(f"开始测试SMTP连接: {smtp_host}:{smtp_port}")
+            
+            # 特殊处理腾讯企业邮箱
+            if 'exmail.qq.com' in smtp_host:
+                logger.info("检测到腾讯企业邮箱，使用优化连接策略")
+                return self._test_tencent_exmail(smtp_host, smtp_port, from_email, from_password)
+            
+            # 创建SSL上下文
+            context = ssl.create_default_context()
+            # 对于某些邮件服务器，可能需要降低SSL安全级别
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+            
+            # 针对不同端口的连接策略
+            if smtp_port == 465:
+                # 465端口使用SSL连接
+                logger.info(f"使用SSL连接: {smtp_host}:{smtp_port}")
+                server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=20, context=context)
+            elif smtp_port == 587:
+                # 587端口使用STARTTLS
+                logger.info(f"使用STARTTLS连接: {smtp_host}:{smtp_port}")
+                server = smtplib.SMTP(smtp_host, smtp_port, timeout=20)
+                server.starttls(context=context)
+            elif smtp_port == 25:
+                # 25端口通常不使用加密
+                logger.info(f"使用普通连接: {smtp_host}:{smtp_port}")
+                server = smtplib.SMTP(smtp_host, smtp_port, timeout=20)
             else:
-                server = smtplib.SMTP(smtp_host, smtp_port)
-                server.starttls()
+                # 其他端口根据use_ssl参数决定
+                if use_ssl:
+                    logger.info(f"使用SSL连接: {smtp_host}:{smtp_port}")
+                    server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=20, context=context)
+                else:
+                    logger.info(f"使用STARTTLS连接: {smtp_host}:{smtp_port}")
+                    server = smtplib.SMTP(smtp_host, smtp_port, timeout=20)
+                    server.starttls(context=context)
             
+            # 发送EHLO命令确保连接稳定
+            logger.info("SMTP连接建立成功，发送EHLO命令")
+            server.ehlo()
+            
+            # 尝试登录
+            logger.info("尝试登录")
             server.login(from_email, from_password)
-            server.quit()
             
-            logger.info(f"SMTP连接测试成功: {smtp_host}:{smtp_port}")
+            # 发送NOOP命令测试连接稳定性
+            server.noop()
+            logger.info("SMTP登录成功，连接稳定")
+            
             return True
             
+        except smtplib.SMTPAuthenticationError as e:
+            error_code = str(e).split()[0] if str(e) else ""
+            if "535" in error_code:
+                error_msg = "认证失败: 用户名或密码错误，请检查邮箱账号和授权码"
+            else:
+                error_msg = f"SMTP认证失败: {e}"
+            logger.error(error_msg)
+            raise Exception(error_msg)
+        except smtplib.SMTPConnectError as e:
+            error_msg = f"无法连接到SMTP服务器 {smtp_host}:{smtp_port}，请检查服务器地址和端口"
+            logger.error(f"SMTP连接错误: {e}")
+            raise Exception(error_msg)
+        except smtplib.SMTPServerDisconnected as e:
+            error_msg = f"服务器意外断开连接，请检查网络连接或更换端口(建议尝试587端口): {e}"
+            logger.error(f"SMTP服务器断开连接: {e}")
+            raise Exception(error_msg)
+        except ssl.SSLError as e:
+            error_msg = f"SSL连接失败，请检查端口({smtp_port})和加密设置是否正确"
+            logger.error(f"SSL错误详情: {e}")
+            raise Exception(error_msg)
+        except (socket.timeout, TimeoutError):
+            error_msg = f"连接超时(30秒)，请检查网络连接或防火墙设置"
+            logger.error(f"连接超时: {smtp_host}:{smtp_port}")
+            raise Exception(error_msg)
+        except socket.gaierror as e:
+            error_msg = f"无法解析服务器地址 {smtp_host}，请检查服务器地址是否正确"
+            logger.error(f"DNS解析错误: {e}")
+            raise Exception(error_msg)
         except Exception as e:
-            logger.error(f"SMTP连接测试失败: {e}")
-            return False
+            import traceback
+            error_msg = f"连接测试失败: {str(e)}"
+            logger.error(f"未知错误: {e}")
+            logger.error(f"详细错误信息: {traceback.format_exc()}")
+            raise Exception(error_msg)
+        finally:
+            if server:
+                try:
+                    server.quit()
+                except:
+                    pass
+    
+    def _test_tencent_exmail(self, smtp_host: str, smtp_port: int, from_email: str, from_password: str) -> bool:
+        """
+        专门针对腾讯企业邮箱的连接测试 - 优化版
+        """
+        logger.info("=== 腾讯企业邮箱连接测试开始 ===")
+        logger.info(f"目标服务器: {smtp_host}:{smtp_port}")
+        logger.info(f"用户邮箱: {from_email}")
+        
+        # 重新排序连接配置，优先使用STARTTLS
+        connection_configs = [
+            {
+                'name': 'STARTTLS_587_优先',
+                'host': smtp_host,
+                'port': 587,
+                'method': 'starttls',
+                'timeout': 15
+            },
+            {
+                'name': 'STARTTLS_25',
+                'host': smtp_host,
+                'port': 25,
+                'method': 'starttls',
+                'timeout': 15
+            },
+            {
+                'name': 'SSL_465_宽松',
+                'host': smtp_host,
+                'port': 465,
+                'method': 'ssl_relaxed',
+                'timeout': 15
+            },
+            {
+                'name': 'SSL_465_标准',
+                'host': smtp_host,
+                'port': 465,
+                'method': 'ssl_default',
+                'timeout': 15
+            },
+            {
+                'name': 'STARTTLS_2525',
+                'host': smtp_host,
+                'port': 2525,
+                'method': 'starttls',
+                'timeout': 15
+            }
+        ]
+        
+        errors = []
+        
+        for i, config in enumerate(connection_configs):
+            try:
+                logger.info(f"[{i+1}/{len(connection_configs)}] 尝试: {config['name']} ({config['host']}:{config['port']})")
+                
+                success = self._test_enhanced_connection(
+                    config['host'],
+                    config['port'],
+                    from_email,
+                    from_password,
+                    config['method'],
+                    config['timeout']
+                )
+                
+                if success:
+                    logger.info(f"✓ 连接成功！使用配置: {config['name']}")
+                    return True
+                    
+            except Exception as e:
+                error_msg = f"{config['name']}: {str(e)}"
+                errors.append(error_msg)
+                logger.warning(f"✗ {config['name']} 失败: {e}")
+                
+                # 如果是认证错误，直接返回，不再尝试其他配置
+                if "authentication failed" in str(e).lower() or "535" in str(e):
+                    raise Exception("认证失败: 用户名或密码错误，请检查邮箱账号和授权码")
+                
+                continue
+        
+        # 所有配置都失败，提供详细的错误报告
+        logger.error("=== 所有连接配置均失败 ===")
+        for error in errors:
+            logger.error(f"  - {error}")
+        
+        raise Exception(f"所有连接方式均失败。尝试了{len(connection_configs)}种配置，建议检查网络连接或联系邮箱服务商")
+    
+    def _test_enhanced_connection(self, smtp_host: str, smtp_port: int, from_email: str, from_password: str, method: str, timeout: int) -> bool:
+        """
+        增强的连接测试方法
+        """
+        server = None
+        try:
+            logger.info(f"  → 开始连接 {smtp_host}:{smtp_port} (方法: {method}, 超时: {timeout}s)")
+            
+            # 根据方法创建连接
+            if method == 'starttls':
+                # STARTTLS连接 (推荐)
+                logger.info(f"  → 建立普通SMTP连接...")
+                server = smtplib.SMTP(smtp_host, smtp_port, timeout=timeout)
+                server.set_debuglevel(0)  # 关闭调试避免日志过多
+                
+                logger.info(f"  → 发送EHLO命令...")
+                server.ehlo()
+                
+                logger.info(f"  → 启动STARTTLS加密...")
+                context = ssl.create_default_context()
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
+                context.set_ciphers('HIGH:!aNULL:!eNULL:!EXPORT:!DES:!RC4:!MD5:!PSK:!SRP:!CAMELLIA')
+                server.starttls(context=context)
+                
+                # STARTTLS后需要重新EHLO
+                server.ehlo()
+                
+            elif method == 'ssl_relaxed':
+                # 宽松SSL连接
+                logger.info(f"  → 建立宽松SSL连接...")
+                context = ssl.create_default_context()
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
+                context.set_ciphers('HIGH:!aNULL:!eNULL:!EXPORT:!DES:!RC4:!MD5:!PSK:!SRP:!CAMELLIA')
+                
+                # 对于一些老旧的服务器，可能需要更宽松的设置
+                try:
+                    context.minimum_version = ssl.TLSVersion.TLSv1
+                except:
+                    pass  # 某些Python版本可能不支持
+                
+                server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=timeout, context=context)
+                server.set_debuglevel(0)
+                server.ehlo()
+                
+            elif method == 'ssl_default':
+                # 标准SSL连接
+                logger.info(f"  → 建立标准SSL连接...")
+                context = ssl.create_default_context()
+                server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=timeout, context=context)
+                server.set_debuglevel(0)
+                server.ehlo()
+                
+            else:
+                raise Exception(f"不支持的连接方法: {method}")
+            
+            # 测试连接稳定性
+            logger.info(f"  → 测试连接稳定性...")
+            server.noop()
+            
+            # 尝试登录
+            logger.info(f"  → 尝试登录用户: {from_email}")
+            server.login(from_email, from_password)
+            
+            # 再次测试连接
+            server.noop()
+            
+            logger.info(f"  ✓ 连接和认证成功！")
+            return True
+            
+        except smtplib.SMTPAuthenticationError as e:
+            logger.error(f"  ✗ 认证失败: {e}")
+            raise Exception(f"认证失败: 用户名或密码错误")
+        except smtplib.SMTPConnectError as e:
+            logger.error(f"  ✗ 连接失败: {e}")
+            raise Exception(f"无法连接到服务器")
+        except smtplib.SMTPServerDisconnected as e:
+            logger.error(f"  ✗ 服务器断开连接: {e}")
+            raise Exception(f"服务器意外断开连接")
+        except ssl.SSLError as e:
+            logger.error(f"  ✗ SSL错误: {e}")
+            raise Exception(f"SSL/TLS握手失败")
+        except socket.timeout as e:
+            logger.error(f"  ✗ 连接超时: {e}")
+            raise Exception(f"连接超时({timeout}秒)")
+        except socket.gaierror as e:
+            logger.error(f"  ✗ DNS解析失败: {e}")
+            raise Exception(f"无法解析服务器地址")
+        except Exception as e:
+            logger.error(f"  ✗ 其他错误: {e}")
+            raise Exception(f"连接失败: {str(e)}")
+        finally:
+            if server:
+                try:
+                    logger.info(f"  → 关闭连接...")
+                    server.quit()
+                except Exception as quit_error:
+                    logger.warning(f"  → 关闭连接时出错: {quit_error}")
+                    pass
+    
     
     def send_email(
         self, 
@@ -157,17 +425,41 @@ class EmailService:
             msg.attach(MIMEText(content, content_type, 'utf-8'))
             
             # 连接SMTP服务器并发送
-            if self.settings.get('use_ssl', True):
-                server = smtplib.SMTP_SSL(
-                    self.settings.get('smtp_host'), 
-                    self.settings.get('smtp_port', 465)
-                )
+            smtp_port = self.settings.get('smtp_port', 465)
+            smtp_host = self.settings.get('smtp_host')
+            
+            # 针对不同邮箱服务商的连接处理
+            if smtp_port == 465:
+                # 465端口使用SSL连接
+                try:
+                    # 尝试默认SSL配置
+                    server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=30)
+                except ssl.SSLError:
+                    # 如果默认SSL失败，尝试自定义SSL上下文
+                    context = ssl.create_default_context()
+                    context.check_hostname = False
+                    context.verify_mode = ssl.CERT_NONE
+                    server = smtplib.SMTP_SSL(smtp_host, smtp_port, context=context, timeout=30)
+            elif smtp_port == 587:
+                # 587端口使用STARTTLS
+                server = smtplib.SMTP(smtp_host, smtp_port, timeout=30)
+                context = ssl.create_default_context()
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
+                server.starttls(context=context)
+            elif smtp_port == 25:
+                # 25端口通常不使用加密
+                server = smtplib.SMTP(smtp_host, smtp_port, timeout=30)
             else:
-                server = smtplib.SMTP(
-                    self.settings.get('smtp_host'), 
-                    self.settings.get('smtp_port', 25)
-                )
-                server.starttls()
+                # 其他端口根据use_ssl参数决定
+                if self.settings.get('use_ssl', True):
+                    server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=30)
+                else:
+                    server = smtplib.SMTP(smtp_host, smtp_port, timeout=30)
+                    context = ssl.create_default_context()
+                    context.check_hostname = False
+                    context.verify_mode = ssl.CERT_NONE
+                    server.starttls(context=context)
             
             server.login(
                 self.settings.get('from_email'), 
