@@ -356,9 +356,9 @@ class SchedulerService:
             self._shutdown = True
             self.is_running = False
             
-            # 等待线程池任务完成
+            # 等待线程池任务完成 - 修复兼容性问题
             if self.executor:
-                self.executor.shutdown(wait=True, timeout=30)
+                self.executor.shutdown(wait=True)  # 移除timeout参数
                 logger.info("线程池已关闭")
             
             # 等待调度线程结束

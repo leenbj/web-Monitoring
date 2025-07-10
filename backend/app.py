@@ -18,7 +18,8 @@ logger = logging.getLogger(__name__)
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backend.config import Config
-from backend.database import init_db, get_db
+from backend.models import init_db
+from backend.database import get_db
 from backend.utils.helpers import ensure_dir
 
 # 导入API蓝图
@@ -35,12 +36,31 @@ def create_app(config_class=Config):
     # 配置JWT
     setup_jwt(app)
     
-    # 配置CORS
+    # 配置CORS - 支持开发和生产环境
+    cors_origins = [
+        "http://localhost:3000", 
+        "http://127.0.0.1:3000",
+        "http://localhost:10080",
+        "http://127.0.0.1:10080"
+    ]
+    
+    # 添加生产环境域名
+    if app.config.get('DOMAIN') and app.config.get('DOMAIN') != 'localhost':
+        domain = app.config.get('DOMAIN')
+        cors_origins.extend([
+            f"http://{domain}",
+            f"https://{domain}",
+            f"http://{domain}:10080",
+            f"https://{domain}:10080"
+        ])
+    
     CORS(app, resources={
         r"/api/*": {
-            "origins": ["http://localhost:3000", "http://127.0.0.1:3000"],
+            "origins": cors_origins,
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization"]
+            "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
+            "expose_headers": ["Content-Range", "X-Content-Range"],
+            "supports_credentials": True
         }
     })
     
@@ -50,8 +70,7 @@ def create_app(config_class=Config):
     # 确保必要目录存在
     ensure_directories()
     
-    # 初始化数据库
-    init_db()
+    
     
     # 启动优化组件
     setup_optimizations(app)

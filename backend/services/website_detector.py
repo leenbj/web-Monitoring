@@ -8,6 +8,7 @@ import time
 import urllib.parse
 import ssl
 import socket
+import multiprocessing
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -55,11 +56,11 @@ class WebsiteDetector:
             config: 检测配置
         """
         self.config = config or {}
-        self.timeout = self.config.get('timeout_seconds', 10)  # 进一步从20降到10
-        self.retry_times = self.config.get('retry_times', 1)   # 进一步从2降到1
-        self.max_concurrent = self.config.get('max_concurrent', 5)  # 进一步从10降到5
-        self.user_agent = self.config.get('user_agent', 
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+        self.timeout = self.config.get('timeout_seconds', 15)  # 优化：增加到15秒
+        self.retry_times = self.config.get('retry_times', 2)   # 优化：增加到2次重试
+        self.max_concurrent = self.config.get('max_concurrent', min(20, multiprocessing.cpu_count() * 4))  # 动态并发数
+        self.user_agent = self.config.get('user_agent',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
         self.verify_ssl = self.config.get('verify_ssl', False)
         
         # 会话创建延迟到使用时

@@ -3,11 +3,15 @@ import { ElMessage } from 'element-plus'
 
 // 创建axios实例
 const api = axios.create({
-  baseURL: '/api',
-  timeout: 65000,
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+  timeout: 30000,  // 优化超时时间为30秒
   headers: {
     'Content-Type': 'application/json'
-  }
+  },
+  // 性能优化配置
+  maxRedirects: 5,
+  maxContentLength: 50 * 1024 * 1024,  // 50MB
+  maxBodyLength: 50 * 1024 * 1024,     // 50MB
 })
 
 // 请求拦截器
@@ -46,12 +50,14 @@ api.interceptors.response.use(
   response => {
     const { data } = response
 
-    // 如果返回的状态码为200，说明请求成功
-    if (data.code === 200) {
-      return { success: true, ...data }
+    // 支持两种响应格式：
+    // 1. { code: 200, data: ... } - 旧格式
+    // 2. { success: true, data: ... } - 新格式
+    if (data.code === 200 || data.success === true) {
+      return { success: true, code: 200, ...data }
     } else {
       // 不自动显示错误消息，让调用方处理
-      return { success: false, ...data }
+      return { success: false, code: data.code || 400, ...data }
     }
   },
   async error => {

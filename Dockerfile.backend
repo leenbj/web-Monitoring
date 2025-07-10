@@ -1,0 +1,210 @@
+# 网址监控系统 - 标准后端Dockerfile
+# 适用于标准生产环境的后端镜像
+
+FROM python:3.11-slim-bullseye
+
+# 设置构建参数
+ARG BUILD_ENV=production
+ARG DEBIAN_FRONTEND=noninteractive
+
+# 设置工作目录
+WORKDIR /app
+
+# 设置环境变量
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    TZ=Asia/Shanghai \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
+
+# 更新系统并安装必要的系统依赖
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # 编译工具
+    gcc \
+    g++ \
+    make \
+    pkg-config \
+    # 网络工具
+    curl \
+    wget \
+    netcat \
+    # MySQL客户端和开发库
+    default-mysql-client \
+    default-libmysqlclient-dev \
+    # 其他必要库
+    libffi-dev \
+    libssl-dev \
+    libxml2-dev \
+    libxslt1-dev \
+    libjpeg-dev \
+    libpng-dev \
+    zlib1g-dev \
+    # 系统工具
+    tzdata \
+    ca-certificates \
+    procps \
+    && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
+    && echo $TZ > /etc/timezone \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# 升级pip和安装基础Python包
+RUN pip install --upgrade pip setuptools wheel
+
+# 复制requirements文件
+COPY requirements.txt .
+
+# 安装Python依赖 - 分步安装以提高成功率
+RUN pip install --no-cache-dir --timeout=300 \
+    # 先安装基础依赖
+    wheel setuptools \
+    # 数据库相关
+    && pip install --no-cache-dir --timeout=300 \
+    PyMySQL==1.1.0 \
+    SQLAlchemy>=2.0.30 \
+    # Flask相关
+    && pip install --no-cache-dir --timeout=300 \
+    Flask==2.3.3 \
+    Flask-SQLAlchemy==3.0.5 \
+    Flask-CORS==4.0.0 \
+    Flask-Mail==0.9.1 \
+    flask-jwt-extended==4.5.3 \
+    flask-limiter==3.5.0 \
+    # 其他核心依赖
+    && pip install --no-cache-dir --timeout=300 \
+    requests==2.31.0 \
+    redis==5.0.1 \
+    APScheduler==3.10.4 \
+    python-dotenv==1.0.0 \
+    # 剩余依赖
+    && pip install --no-cache-dir --timeout=300 -r requirements.txt \
+    && pip cache purge
+
+# 创建应用用户（安全最佳实践）
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# 创建应用目录结构
+RUN mkdir -p /app/backend/logs \
+    /app/backend/uploads \
+    /app/backend/downloads \
+    /app/backend/user_files \
+    /app/database \
+    /app/tmp
+
+# 复制应用代码
+COPY backend/ ./backend/
+COPY database/ ./database/
+COPY init_database.py .
+COPY run_backend.py .
+
+# 创建启动脚本
+RUN cat > /app/start.sh << 'EOF'
+#!/bin/bash
+set -e
+
+echo "=== 网址监控系统后端启动 ==="
+echo "启动时间: $(date)"
+echo "环境: ${FLASK_ENV:-production}"
+echo "Python版本: $(python --version)"
+
+# 检查必要的环境变量
+if [ -z "$SECRET_KEY" ]; then
+    echo "警告: SECRET_KEY 未设置，使用默认值"
+    export SECRET_KEY="WebMonitorSecretKey2024ChangeMeInProduction"
+fi
+
+# 等待MySQL数据库连接
+echo "等待MySQL数据库连接..."
+max_attempts=60
+attempt=0
+while [ $attempt -lt $max_attempts ]; do
+    if nc -z mysql 3306 2>/dev/null; then
+        echo "MySQL数据库连接成功"
+        break
+    fi
+    attempt=$((attempt + 1))
+    echo "等待MySQL连接... ($attempt/$max_attempts)"
+    sleep 2
+done
+
+if [ $attempt -eq $max_attempts ]; then
+    echo "MySQL数据库连接超时，使用SQLite备用方案"
+    export DATABASE_URL="sqlite:///app/database/website_monitor.db"
+fi
+
+# 等待Redis连接
+echo "等待Redis缓存连接..."
+max_attempts=30
+attempt=0
+while [ $attempt -lt $max_attempts ]; do
+    if nc -z redis 6379 2>/dev/null; then
+        echo "Redis缓存连接成功"
+        break
+    fi
+    attempt=$((attempt + 1))
+    echo "等待Redis连接... ($attempt/$max_attempts)"
+    sleep 1
+done
+
+if [ $attempt -eq $max_attempts ]; then
+    echo "Redis连接超时，继续启动（功能可能受限）"
+fi
+
+# 初始化数据库
+echo "初始化数据库..."
+python init_database.py || echo "数据库初始化跳过（可能已存在）"
+
+# 检查数据库连接
+echo "检查数据库连接..."
+python -c "
+import sys
+sys.path.append('/app')
+try:
+    from backend.database import get_db
+    db = get_db()
+    print('数据库连接测试成功')
+except Exception as e:
+    print(f'数据库连接测试失败: {e}')
+    sys.exit(1)
+" || {
+    echo "数据库连接失败，退出启动"
+    exit 1
+}
+
+# 设置文件权限
+chmod -R 755 /app/backend/logs /app/backend/uploads /app/backend/downloads /app/backend/user_files /app/database
+
+# 启动应用
+echo "启动后端服务 (端口: 5000)..."
+echo "健康检查地址: http://localhost:5000/api/health"
+exec python run_backend.py
+EOF
+
+# 设置启动脚本权限
+RUN chmod +x /app/start.sh
+
+# 设置文件权限
+RUN chmod +x run_backend.py && \
+    chmod -R 755 /app && \
+    chmod -R 777 /app/backend/logs && \
+    chmod -R 777 /app/backend/uploads && \
+    chmod -R 777 /app/backend/downloads && \
+    chmod -R 777 /app/backend/user_files && \
+    chmod -R 777 /app/database && \
+    chmod -R 777 /app/tmp && \
+    chown -R appuser:appuser /app
+
+# 切换到应用用户
+USER appuser
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
+    CMD curl -f http://localhost:5000/api/health || exit 1
+
+# 暴露端口
+EXPOSE 5000
+
+# 启动命令
+CMD ["/app/start.sh"]

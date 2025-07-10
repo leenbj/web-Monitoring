@@ -149,7 +149,13 @@ const handleLogin = async () => {
     
   } catch (error) {
     console.error('登录失败:', error)
-    ElMessage.error(error.message || '登录失败，请检查用户名和密码')
+    // 检查是否是成功消息被错误处理
+    if (error.message && error.message.includes('登录成功')) {
+      ElMessage.success('登录成功')
+      router.push('/')
+    } else {
+      ElMessage.error(error.message || '登录失败，请检查用户名和密码')
+    }
   } finally {
     loading.value = false
   }

@@ -21,20 +21,20 @@ engine = create_engine(
     echo=getattr(config, 'SQLALCHEMY_ECHO', False),
     # 进一步优化连接池配置 - 大幅降低资源占用
     poolclass=QueuePool,
-    pool_size=3,                  # 连接池大小（降到3）
-    max_overflow=5,               # 最大溢出连接数（降到5）
-    pool_timeout=15,              # 获取连接超时时间（降到15秒）
-    pool_recycle=900,             # 连接回收时间(15分钟，进一步降低)
+    pool_size=5,                  # 连接池大小（适度增加到5）
+    max_overflow=10,              # 最大溢出连接数（增加到10）
+    pool_timeout=30,              # 获取连接超时时间（增加到30秒）
+    pool_recycle=1800,            # 连接回收时间(30分钟)
     pool_pre_ping=True,           # 连接前检查
     # SQLite优化配置
     connect_args={
         "check_same_thread": False,  # SQLite特有配置
-        "timeout": 60,               # SQLite连接超时（增加）
+        "timeout": 60,               # SQLite连接超时
         "isolation_level": None,     # 自动提交模式
     } if 'sqlite' in config.SQLALCHEMY_DATABASE_URI else {
-        # PostgreSQL/MySQL 优化配置
+        # PostgreSQL/MySQL 优化配置 - 修复PyMySQL兼容性问题
         "connect_timeout": 60,
-        "server_side_cursors": True
+        "charset": "utf8mb4"         # 替换server_side_cursors为charset配置
     }
 )
 

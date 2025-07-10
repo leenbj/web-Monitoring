@@ -37,3 +37,19 @@ python-dotenv==1.0.0
 
 # 字符编码检测
 chardet==5.2.0 
+
+# JWT认证
+flask-jwt-extended==4.5.3
+
+# API限流
+flask-limiter==3.5.0
+
+# MySQL数据库驱动
+PyMySQL==1.1.0
+
+# Redis客户端
+redis==5.0.1
+
+# 加密和安全
+cryptography==41.0.7
+bcrypt==4.1.2
