@@ -70,7 +70,8 @@ def create_app(config_class=Config):
     # 确保必要目录存在
     ensure_directories()
     
-    
+    # 初始化数据库
+    init_db(app)
     
     # 启动优化组件
     setup_optimizations(app)
@@ -86,6 +87,9 @@ def create_app(config_class=Config):
     
     # 设置关闭处理器
     setup_shutdown_handlers(app)
+    
+    # 注册基本路由
+    register_basic_routes(app)
     
     logger.info("Flask应用创建完成")
     
@@ -346,112 +350,113 @@ def setup_jwt(app):
     return jwt
 
 
+def register_basic_routes(app):
+    """注册基本路由"""
+    
+    @app.route('/')
+    def index():
+        """首页"""
+        return jsonify({
+            'code': 200,
+            'message': '网址监控工具API服务运行正常',
+            'data': {
+                'version': '1.0.0',
+                'api_prefix': '/api',
+                'endpoints': {
+                    'websites': '/api/websites',
+                    'tasks': '/api/tasks',
+                    'results': '/api/results'
+                }
+            }
+        })
+
+    @app.route('/api/health')
+    def health_check():
+        """健康检查"""
+        try:
+            # 检查数据库连接
+            from sqlalchemy import text
+            with get_db() as db:
+                db.execute(text('SELECT 1'))
+            
+            return jsonify({
+                'code': 200,
+                'message': '服务健康',
+                'data': {
+                    'status': 'healthy',
+                    'database': 'connected',
+                    'timestamp': datetime.now().isoformat()
+                }
+            })
+        except Exception as e:
+            logger.error(f"健康检查失败: {e}")
+            return jsonify({
+                'code': 500,
+                'message': '服务异常',
+                'data': {
+                    'status': 'unhealthy',
+                    'error': str(e)
+                }
+            }), 500
+
+    @app.route('/api/system/info')
+    def system_info():
+        """系统信息"""
+        try:
+            import platform
+            import psutil
+            from datetime import datetime
+            
+            # 系统信息
+            system_info = {
+                'platform': platform.platform(),
+                'python_version': platform.python_version(),
+                'cpu_count': psutil.cpu_count(),
+                'memory_total': psutil.virtual_memory().total,
+                'memory_available': psutil.virtual_memory().available,
+                'disk_usage': psutil.disk_usage('/').percent,
+                'uptime': datetime.now().isoformat()
+            }
+            
+            # 数据库统计
+            with get_db() as db:
+                from backend.models import Website, DetectionTask, DetectionRecord
+                
+                website_count = db.query(Website).count()
+                task_count = db.query(DetectionTask).count()
+                record_count = db.query(DetectionRecord).count()
+            
+            # 调度器状态
+            scheduler_status = {}
+            if 'SCHEDULER_SERVICE' in app.config:
+                scheduler = app.config['SCHEDULER_SERVICE']
+                scheduler_status = scheduler.get_status()
+            
+            return jsonify({
+                'code': 200,
+                'message': 'success',
+                'data': {
+                    'system': system_info,
+                    'database': {
+                        'websites': website_count,
+                        'tasks': task_count,
+                        'records': record_count
+                    },
+                    'scheduler_status': scheduler_status
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"获取系统信息失败: {e}")
+            return jsonify({
+                'code': 500,
+                'message': f'获取系统信息失败: {str(e)}',
+                'data': None
+            }), 500
+
+
 # 创建应用实例
 app = create_app()
-
-
-@app.route('/')
-def index():
-    """首页"""
-    return jsonify({
-        'code': 200,
-        'message': '网址监控工具API服务运行正常',
-        'data': {
-            'version': '1.0.0',
-            'api_prefix': '/api',
-            'endpoints': {
-                'websites': '/api/websites',
-                'tasks': '/api/tasks',
-                'results': '/api/results'
-            }
-        }
-    })
-
-
-@app.route('/api/health')
-def health_check():
-    """健康检查"""
-    try:
-        # 检查数据库连接
-        from sqlalchemy import text
-        with get_db() as db:
-            db.execute(text('SELECT 1'))
-        
-        return jsonify({
-            'code': 200,
-            'message': '服务健康',
-            'data': {
-                'status': 'healthy',
-                'database': 'connected',
-                'timestamp': datetime.now().isoformat()
-            }
-        })
-    except Exception as e:
-        logger.error(f"健康检查失败: {e}")
-        return jsonify({
-            'code': 500,
-            'message': '服务异常',
-            'data': {
-                'status': 'unhealthy',
-                'error': str(e)
-            }
-        }), 500
-
-
-@app.route('/api/system/info')
-def system_info():
-    """系统信息"""
-    try:
-        import platform
-        import psutil
-        from datetime import datetime
-        
-        # 系统信息
-        system_info = {
-            'platform': platform.platform(),
-            'python_version': platform.python_version(),
-            'cpu_count': psutil.cpu_count(),
-            'memory_total': psutil.virtual_memory().total,
-            'memory_available': psutil.virtual_memory().available,
-            'disk_usage': psutil.disk_usage('/').percent,
-            'uptime': datetime.now().isoformat()
-        }
-        
-        # 数据库统计
-        with get_db() as db:
-            from backend.models import Website, DetectionTask, DetectionRecord
-            
-            website_count = db.query(Website).count()
-            task_count = db.query(DetectionTask).count()
-            record_count = db.query(DetectionRecord).count()
-        
-        # 调度器状态
-        scheduler_status = {}
-        if 'SCHEDULER_SERVICE' in app.config:
-            scheduler = app.config['SCHEDULER_SERVICE']
-            scheduler_status = scheduler.get_status()
-        
-        return jsonify({
-            'code': 200,
-            'message': 'success',
-            'data': {
-                'system': system_info,
-                'database': {
-                    'websites': website_count,
-                    'tasks': task_count,
-                    'records': record_count
-                },
-                'scheduler_status': scheduler_status
-            }
-        })
-        
-    except Exception as e:
-        logger.error(f"获取系统信息失败: {e}")
-        return jsonify({
-            'code': 500,
-            'message': f'获取系统信息失败: {str(e)}',
-            'data': None
-        }), 500
 
 
 if __name__ == '__main__':

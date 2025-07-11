@@ -411,18 +411,26 @@ export default {
       }
     }
 
-    // 加载最新结果
+    // 加载最新结果 - 优化内存占用
     const loadRecentResults = async () => {
       try {
         const response = await resultApi.getList({ 
           page: 1, 
-          per_page: 10,
+          per_page: 5, // 从10减少到5，减少内存占用
           order_by: 'check_time',
           order: 'desc'
         })
-        recentResults.value = response.data.results
+        // 只保留必要的字段，清理无用数据
+        recentResults.value = (response.data.results || []).map(item => ({
+          id: item.id,
+          website_name: item.website_name,
+          status: item.status,
+          detected_at: item.detected_at,
+          response_time: item.response_time
+        }))
       } catch (error) {
         console.error('加载最新结果失败:', error)
+        recentResults.value = [] // 确保错误时清空数据
       }
     }
 
@@ -496,24 +504,25 @@ export default {
 
 
 
-    // 启动智能定时刷新 - 根据活动状态调整频率
+    // 启动智能定时刷新 - 大幅降低频率减少内存占用
     const startStatusCheck = () => {
       let refreshCount = 0
       statusCheckInterval = setInterval(() => {
         refreshCount++
         
-        // 前3次刷新频率较高（2分钟），之后降低到5分钟
-        if (refreshCount <= 3) {
-          refreshStatus()
-        } else if (refreshCount % 2 === 0) {
-          // 每4分钟刷新一次关键数据
+        // 前2次刷新频率为5分钟，之后降低到10分钟
+        if (refreshCount <= 2) {
+          // 只刷新关键数据，不刷新详细结果
           loadStatistics()
           checkMonitorStatus()
+        } else if (refreshCount % 3 === 0) {
+          // 每30分钟刷新一次完整数据
+          refreshStatus()
         } else {
-          // 每2分钟简单检查监控状态
+          // 每10分钟简单检查监控状态
           checkMonitorStatus()
         }
-      }, 120000) // 2分钟基础间隔
+      }, 300000) // 5分钟基础间隔（从2分钟改为5分钟）
     }
 
     // 停止定时刷新
@@ -533,21 +542,28 @@ export default {
       // 清理定时器
       stopStatusCheck()
       
-      // 清理响应式数据，防止内存泄漏
-      statistics.value = {
+      // 立即清理所有响应式数据，防止内存泄漏
+      Object.assign(statistics, {
+        total_checks: 0,
         total_websites: 0,
-        monitoring_websites: 0,
-        normal_websites: 0,
-        failed_websites: 0,
-        redirect_websites: 0
-      }
-      recentResults.value = []
+        standard_count: 0,
+        redirect_count: 0,
+        failed_count: 0,
+        success_rate: 0
+      })
+      recentResults.value.length = 0 // 清空数组而不是重新赋值
       
       // 清理其他状态
       refreshing.value = false
       quickDetecting.value = false
       monitorStatus.value = false
       hasWebsites.value = false
+      onlineWebsiteCount.value = 0
+      
+      // 手动触发垃圾回收（如果可能）
+      if (window.gc && typeof window.gc === 'function') {
+        window.gc()
+      }
     })
 
     return {

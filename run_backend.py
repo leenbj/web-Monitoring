@@ -1,22 +1,29 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-启动后端服务器
+网址监控系统后端启动脚本
 """
 
-import sys
 import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+import sys
+from pathlib import Path
 
-from backend.app import app
+# 添加项目根目录到Python路径
+project_root = Path(__file__).parent.absolute()
+sys.path.insert(0, str(project_root))
+
+# 导入应用
+from backend.app import create_app
 
 if __name__ == '__main__':
-    # 从环境变量获取端口，默认5000
+    # 创建应用实例
+    app = create_app()
+    
+    # 启动应用
     port = int(os.environ.get('PORT', 5000))
-    debug = os.environ.get('FLASK_ENV') == 'development'
-
-    print("启动网址监控工具后端服务...")
-    print(f"服务地址: http://localhost:{port}")
-    print(f"API文档: http://localhost:{port}/api")
-    print("按 Ctrl+C 停止服务")
-
-    app.run(host='0.0.0.0', port=port, debug=debug)
+    app.run(
+        host='0.0.0.0',
+        port=port,
+        debug=False,
+        threaded=True
+    ) 

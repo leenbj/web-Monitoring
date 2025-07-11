@@ -247,7 +247,7 @@
         :current-page="currentPage"
         :page-size="pageSize"
         :total="total"
-        :page-sizes="[10, 20, 50, 100]"
+        :page-sizes="[10, 15, 25, 50]"
         layout="total, sizes, prev, pager, next, jumper"
         @size-change="handleSizeChange"
         @current-change="handleCurrentChange"
@@ -258,7 +258,7 @@
 </template>
 
 <script>
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   Download, 
@@ -291,7 +291,7 @@ export default {
     const results = ref([])
     const total = ref(0)
     const currentPage = ref(1)
-    const pageSize = ref(20)
+    const pageSize = ref(15) // 从20减少到15，减少单页数据量
     const statusFilter = ref('')
     const dateRange = ref([])
     const searchKeyword = ref('')
@@ -338,11 +338,27 @@ export default {
         }
 
         const response = await resultApi.getList(params)
-        results.value = response.data.results || []
+        
+        // 只保留必要字段，减少内存占用
+        results.value = (response.data.results || []).map(item => ({
+          id: item.id,
+          website_id: item.website_id,
+          website_name: item.website_name,
+          website_url: item.website_url,
+          status: item.status,
+          final_url: item.final_url,
+          response_time: item.response_time,
+          http_status_code: item.http_status_code,
+          detected_at: item.detected_at,
+          error_message: item.error_message?.substring(0, 100) || '' // 截断错误信息
+        }))
+        
         total.value = response.data.pagination?.total || 0
         
-        // 加载统计信息
-        await loadStats()
+        // 仅在首次加载或手动刷新时加载统计信息
+        if (currentPage.value === 1 || params.force_refresh) {
+          await loadStats()
+        }
       } catch (error) {
         console.error('加载检测结果失败:', error)
         ElMessage.error('加载数据失败')
@@ -364,10 +380,11 @@ export default {
       if (searchTimeout) {
         clearTimeout(searchTimeout)
       }
+      // 增加防抖时间，减少频繁请求
       searchTimeout = setTimeout(() => {
         currentPage.value = 1
         loadResults()
-      }, 500)
+      }, 800)
     }
 
     const exportResults = async () => {
@@ -535,6 +552,29 @@ export default {
 
     onMounted(() => {
       // 初始化时已通过watch处理路由参数
+    })
+
+    // 组件卸载时清理数据
+    onUnmounted(() => {
+      // 清理定时器
+      if (searchTimeout) {
+        clearTimeout(searchTimeout)
+        searchTimeout = null
+      }
+      
+      // 清理数据
+      results.value.length = 0
+      Object.assign(stats, {
+        total_websites: 0,
+        total_checks: 0,
+        standard_count: 0,
+        redirect_count: 0,
+        failed_count: 0,
+        success_rate: 0,
+        standard_rate: 0,
+        redirect_rate: 0,
+        failed_rate: 0
+      })
     })
 
     return {

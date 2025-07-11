@@ -253,7 +253,7 @@
             :current-page="currentPage"
             :page-size="pageSize"
             :total="total"
-            :page-sizes="[10, 20, 50, 100]"
+            :page-sizes="[10, 15, 25, 50]"
             layout="total, sizes, prev, pager, next, jumper"
             @size-change="handleSizeChange"
             @current-change="handleCurrentChange"
@@ -355,7 +355,7 @@
 </template>
 
 <script>
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   Refresh,
@@ -394,7 +394,7 @@ export default {
     const taskWebsites = ref([])
     const total = ref(0)
     const currentPage = ref(1)
-    const pageSize = ref(20)
+    const pageSize = ref(15) // 减少每页数据量
     const changeTypeFilter = ref('')
     const taskWebsitesDialogVisible = ref(false)
     const editTaskDialogVisible = ref(false)
@@ -446,21 +446,48 @@ export default {
         // 获取状态变化数据
         const response = await statusChangeApi.getRecentChanges(firstTaskId, params)
         
-        // 转换后端数据格式为前端需要的格式
+        // 转换后端数据格式为前端需要的格式，只保留必要字段
         const allChanges = [
-          ...response.data.became_accessible.map(item => ({ ...item, change_type: 'to_success' })),
-          ...response.data.became_failed.map(item => ({ ...item, change_type: 'to_failed' })),
-          ...response.data.status_changed.map(item => ({ ...item, change_type: 'status_change' }))
+          ...response.data.became_accessible.map(item => ({
+            id: item.id,
+            website_name: item.website_name || item.name,
+            website_domain: item.website_domain || item.domain,
+            change_type: 'to_success',
+            detected_at: item.detected_at || item.change_time,
+            current_status: 'standard'
+          })),
+          ...response.data.became_failed.map(item => ({
+            id: item.id,
+            website_name: item.website_name || item.name,
+            website_domain: item.website_domain || item.domain,
+            change_type: 'to_failed',
+            detected_at: item.detected_at || item.change_time,
+            current_status: 'failed'
+          })),
+          ...response.data.status_changed.map(item => ({
+            id: item.id,
+            website_name: item.website_name || item.name,
+            website_domain: item.website_domain || item.domain,
+            change_type: 'status_change',
+            detected_at: item.detected_at || item.change_time,
+            current_status: item.current_status || item.new_status
+          }))
         ]
 
-        // 过滤条件
+        // 过滤条件并限制数量
         let filteredChanges = allChanges
         if (changeTypeFilter.value) {
           filteredChanges = allChanges.filter(change => change.change_type === changeTypeFilter.value)
         }
 
+        // 限制最大显示数量，避免内存过载
+        const maxChanges = 100
+        if (filteredChanges.length > maxChanges) {
+          filteredChanges = filteredChanges.slice(0, maxChanges)
+        }
+
         statusChanges.value = filteredChanges
-        total.value = filteredChanges.length
+        total.value = Math.min(filteredChanges.length, maxChanges)
         
       } catch (error) {
         console.error('加载状态变化失败:', error)
@@ -955,6 +982,36 @@ export default {
 
     onMounted(() => {
       refreshData()
+    })
+
+    // 组件卸载时清理数据
+    onUnmounted(() => {
+      // 清理数组数据
+      statusChanges.value.length = 0
+      failedMonitorTasks.value.length = 0
+      taskWebsites.value.length = 0
+      availableWebsites.value.length = 0
+      
+      // 清理统计数据
+      Object.assign(statusChangeStats, {
+        total_changes: 0,
+        to_failed: 0,
+        to_success: 0,
+        status_change: 0
+      })
+      
+      Object.assign(failedSiteMonitorStats, {
+        active_tasks: 0,
+        total_websites: 0,
+        monitoring_websites: 0
+      })
+      
+      // 重置状态
+      hasFailedSites.value = false
+      loading.value = false
+      saving.value = false
+      taskWebsitesDialogVisible.value = false
+      editTaskDialogVisible.value = false
     })
 
     return {

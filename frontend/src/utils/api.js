@@ -1,18 +1,37 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
+// 简单的请求缓存
+const requestCache = new Map()
+const CACHE_DURATION = 30000 // 30秒缓存
+
 // 创建axios实例
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
-  timeout: 30000,  // 优化超时时间为30秒
+  timeout: 20000,  // 减少超时时间到20秒
   headers: {
     'Content-Type': 'application/json'
   },
   // 性能优化配置
-  maxRedirects: 5,
-  maxContentLength: 50 * 1024 * 1024,  // 50MB
-  maxBodyLength: 50 * 1024 * 1024,     // 50MB
+  maxRedirects: 3, // 减少重定向次数
+  maxContentLength: 10 * 1024 * 1024,  // 减少到10MB
+  maxBodyLength: 10 * 1024 * 1024,     // 减少到10MB
 })
+
+// 生成缓存key
+const getCacheKey = (config) => {
+  return `${config.method}:${config.url}:${JSON.stringify(config.params || {})}`
+}
+
+// 清理过期缓存
+const clearExpiredCache = () => {
+  const now = Date.now()
+  for (const [key, value] of requestCache.entries()) {
+    if (now - value.timestamp > CACHE_DURATION) {
+      requestCache.delete(key)
+    }
+  }
+}
 
 // 请求拦截器
 api.interceptors.request.use(
@@ -22,6 +41,25 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
+
+    // 对GET请求进行缓存检查
+    if (config.method === 'get' && !config.noCache) {
+      const cacheKey = getCacheKey(config)
+      const cached = requestCache.get(cacheKey)
+      
+      if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+        // 返回缓存的Promise
+        config.adapter = () => Promise.resolve({
+          data: cached.data,
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config,
+          request: {}
+        })
+      }
+    }
+
     return config
   },
   error => {
@@ -49,6 +87,20 @@ const processQueue = (error, token = null) => {
 api.interceptors.response.use(
   response => {
     const { data } = response
+
+    // 缓存GET请求的响应
+    if (response.config.method === 'get' && !response.config.noCache && data) {
+      const cacheKey = getCacheKey(response.config)
+      requestCache.set(cacheKey, {
+        data: data,
+        timestamp: Date.now()
+      })
+      
+      // 定期清理过期缓存
+      if (requestCache.size > 50) {
+        clearExpiredCache()
+      }
+    }
 
     // 支持两种响应格式：
     // 1. { code: 200, data: ... } - 旧格式
@@ -367,5 +419,13 @@ export const userApi = {
   // 重置密码（仅管理员）
   resetPassword: (id, data) => api.put(`/auth/users/${id}`, data)
 }
+
+// 清理所有缓存
+export const clearApiCache = () => {
+  requestCache.clear()
+}
+
+// 定期清理缓存（每5分钟）
+setInterval(clearExpiredCache, 300000)
 
 export default api

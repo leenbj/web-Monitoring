@@ -1,11 +1,26 @@
-# 网址监控系统 - 标准后端Dockerfile
-# 适用于标准生产环境的后端镜像
+# 网址监控系统 - Docker Hub 自动构建版本
+# 支持多架构构建 (linux/amd64, linux/arm64)
 
 FROM python:3.11-slim-bullseye
 
 # 设置构建参数
-ARG BUILD_ENV=production
-ARG DEBIAN_FRONTEND=noninteractive
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
+ARG BUILD_DATE
+ARG VCS_REF
+ARG VERSION
+
+# 设置标签
+LABEL maintainer="网址监控系统 <support@example.com>" \
+      org.opencontainers.image.title="网址监控系统后端" \
+      org.opencontainers.image.description="一个功能完整的网址监控系统后端服务" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.revision="${VCS_REF}" \
+      org.opencontainers.image.source="https://github.com/yourusername/web-monitor" \
+      org.opencontainers.image.url="https://github.com/yourusername/web-monitor" \
+      org.opencontainers.image.documentation="https://github.com/yourusername/web-monitor/blob/main/README.md" \
+      org.opencontainers.image.licenses="MIT"
 
 # 设置工作目录
 WORKDIR /app
@@ -17,7 +32,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     TZ=Asia/Shanghai \
     LANG=C.UTF-8 \
-    LC_ALL=C.UTF-8
+    LC_ALL=C.UTF-8 \
+    FLASK_ENV=production \
+    FLASK_APP=run_backend.py
 
 # 更新系统并安装必要的系统依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -56,7 +73,7 @@ RUN pip install --upgrade pip setuptools wheel
 # 复制requirements文件
 COPY requirements.txt .
 
-# 安装Python依赖 - 分步安装以提高成功率
+# 安装Python依赖 - 优化的分步安装
 RUN pip install --no-cache-dir --timeout=300 \
     # 先安装基础依赖
     wheel setuptools \
@@ -99,88 +116,8 @@ COPY database/ ./database/
 COPY init_database.py .
 COPY run_backend.py .
 
-# 创建启动脚本
-RUN cat > /app/start.sh << 'EOF'
-#!/bin/bash
-set -e
-
-echo "=== 网址监控系统后端启动 ==="
-echo "启动时间: $(date)"
-echo "环境: ${FLASK_ENV:-production}"
-echo "Python版本: $(python --version)"
-
-# 检查必要的环境变量
-if [ -z "$SECRET_KEY" ]; then
-    echo "警告: SECRET_KEY 未设置，使用默认值"
-    export SECRET_KEY="WebMonitorSecretKey2024ChangeMeInProduction"
-fi
-
-# 等待MySQL数据库连接
-echo "等待MySQL数据库连接..."
-max_attempts=60
-attempt=0
-while [ $attempt -lt $max_attempts ]; do
-    if nc -z mysql 3306 2>/dev/null; then
-        echo "MySQL数据库连接成功"
-        break
-    fi
-    attempt=$((attempt + 1))
-    echo "等待MySQL连接... ($attempt/$max_attempts)"
-    sleep 2
-done
-
-if [ $attempt -eq $max_attempts ]; then
-    echo "MySQL数据库连接超时，使用SQLite备用方案"
-    export DATABASE_URL="sqlite:///app/database/website_monitor.db"
-fi
-
-# 等待Redis连接
-echo "等待Redis缓存连接..."
-max_attempts=30
-attempt=0
-while [ $attempt -lt $max_attempts ]; do
-    if nc -z redis 6379 2>/dev/null; then
-        echo "Redis缓存连接成功"
-        break
-    fi
-    attempt=$((attempt + 1))
-    echo "等待Redis连接... ($attempt/$max_attempts)"
-    sleep 1
-done
-
-if [ $attempt -eq $max_attempts ]; then
-    echo "Redis连接超时，继续启动（功能可能受限）"
-fi
-
-# 初始化数据库
-echo "初始化数据库..."
-python init_database.py || echo "数据库初始化跳过（可能已存在）"
-
-# 检查数据库连接
-echo "检查数据库连接..."
-python -c "
-import sys
-sys.path.append('/app')
-try:
-    from backend.database import get_db
-    db = get_db()
-    print('数据库连接测试成功')
-except Exception as e:
-    print(f'数据库连接测试失败: {e}')
-    sys.exit(1)
-" || {
-    echo "数据库连接失败，退出启动"
-    exit 1
-}
-
-# 设置文件权限
-chmod -R 755 /app/backend/logs /app/backend/uploads /app/backend/downloads /app/backend/user_files /app/database
-
-# 启动应用
-echo "启动后端服务 (端口: 5000)..."
-echo "健康检查地址: http://localhost:5000/api/health"
-exec python run_backend.py
-EOF
+# 复制启动脚本
+COPY start.sh /app/start.sh
 
 # 设置启动脚本权限
 RUN chmod +x /app/start.sh
@@ -207,4 +144,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
 EXPOSE 5000
 
 # 启动命令
-CMD ["/app/start.sh"]
+CMD ["/app/start.sh"] 

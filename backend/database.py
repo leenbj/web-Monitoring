@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool, QueuePool
 from contextlib import contextmanager
 from .config import get_config
-from .models import Base
+from .models import Base, db
 
 logger = logging.getLogger(__name__)
 

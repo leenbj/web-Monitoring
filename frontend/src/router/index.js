@@ -1,15 +1,19 @@
 import { createRouter, createWebHistory } from 'vue-router'
+
+// 核心组件立即加载
 import Home from '../views/Home.vue'
 import Login from '../views/Login.vue'
-import Websites from '../views/Websites.vue'
-import Tasks from '../views/Tasks.vue'
-import Results from '../views/Results.vue'
-import Files from '../views/Files.vue'
-import Groups from '../views/Groups.vue'
-import StatusChanges from '../views/StatusChanges.vue'
-import Settings from '../views/Settings.vue'
-import UserManagement from '../views/UserManagement.vue'
-import Profile from '../views/Profile.vue'
+
+// 其他组件懒加载，减少初始包大小
+const Websites = () => import('../views/Websites.vue')
+const Tasks = () => import('../views/Tasks.vue')
+const Results = () => import('../views/Results.vue')
+const Files = () => import('../views/Files.vue')
+const Groups = () => import('../views/Groups.vue')
+const StatusChanges = () => import('../views/StatusChanges.vue')
+const Settings = () => import('../views/Settings.vue')
+const UserManagement = () => import('../views/UserManagement.vue')
+const Profile = () => import('../views/Profile.vue')
 
 const routes = [
   {

@@ -23,21 +23,54 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-# Virtual Environment
-venv/
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Environments
+.env
+.venv
 env/
+venv/
 ENV/
 env.bak/
 venv.bak/
 
-# IDEs
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
+# Database
+*.db
+*.sqlite
+*.sqlite3
+instance/
 
-# OS
+# Logs
+logs/
+*.log
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Frontend build
+frontend/dist/
+frontend/node_modules/
+
+# OS generated files
 .DS_Store
 .DS_Store?
 ._*
@@ -46,64 +79,19 @@ venv.bak/
 ehthumbs.db
 Thumbs.db
 
-# Logs
-logs/
-*.log
-backend_server.log
-backend_test.log
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
 
-# Database files
-database/*.db
-database/*.db-*
-database/website_monitor_backup_*.db
+# Docker
+*.tar.gz
+docker-compose.override.yml
 
-# Upload and download directories
+# Application specific
 uploads/
 downloads/
 user_files/
-
-# Node.js
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.npm
-.yarn-integrity
-
-# Vue.js
-.vite/
-dist/
-
-# Test files
-test_*.py
-
-# Temporary files
-*.tmp
-*.temp
-nohup.out
-
-# Flask instance folder
-instance/
-
-# Environment variables
-.env
-.env.local
-.env.*.local
-
-# Coverage reports
-htmlcov/
-.coverage
-.coverage.*
-coverage.xml
-*.cover
-.hypothesis/
-.pytest_cache/
-
-# macOS
-.AppleDouble
-.LSOverride
-
-# Windows
-*.exe
-*.dll
-*.pdb
+mysql/data/
+redis/data/

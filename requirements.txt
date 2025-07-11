@@ -52,4 +52,4 @@ redis==5.0.1
 
 # 加密和安全
 cryptography==41.0.7
-bcrypt==4.1.2
+bcrypt==4.1.2 

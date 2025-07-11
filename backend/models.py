@@ -29,6 +29,7 @@ class WebsiteGroup(db.Model):
     id = db.Column(db.Integer, primary_key=True, comment='分组ID')
     name = db.Column(db.String(255), nullable=False, unique=True, index=True, comment='分组名称')
     description = db.Column(db.Text, comment='分组描述')
+    color = db.Column(db.String(20), default='#409EFF', comment='分组颜色')
     is_default = db.Column(db.Boolean, default=False, nullable=False, comment='是否默认分组')
     created_at = db.Column(db.DateTime, default=get_beijing_time, nullable=False, comment='创建时间')
     updated_at = db.Column(db.DateTime, default=get_beijing_time, onupdate=get_beijing_time, nullable=False, comment='更新时间')
@@ -45,6 +46,7 @@ class WebsiteGroup(db.Model):
             'id': self.id,
             'name': self.name,
             'description': self.description,
+            'color': self.color,
             'is_default': self.is_default,
             'website_count': self.websites.count(),
             'created_at': self.created_at.isoformat() if self.created_at else None,
