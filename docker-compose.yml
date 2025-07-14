@@ -39,9 +39,10 @@ services:
     networks:
       - webmonitor
 
-  # 后端服务 - 使用 Docker Hub 镜像
+  # 后端服务 - 使用本地构建的镜像
   backend:
-    # 本地构建
+    image: web-monitoring-backend:latest
+    # 如果镜像不存在，则本地构建
     build:
       context: .
       dockerfile: Dockerfile
@@ -94,18 +95,23 @@ services:
     networks:
       - webmonitor
 
-  # 前端服务 (可选，如果需要一体化部署)
+  # 前端服务 - 使用本地构建的镜像
   frontend:
-    image: nginx:alpine
+    image: web-monitoring-frontend:latest
+    # 如果镜像不存在，则本地构建
+    build:
+      context: frontend
+      dockerfile: Dockerfile
     container_name: webmonitor-frontend
     restart: unless-stopped
     depends_on:
       - backend
     ports:
       - "8080:80"
-    volumes:
-      - ./frontend/dist:/usr/share/nginx/html
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+    # 前端静态文件已经在镜像内部构建完成，不需要外部挂载
+    # volumes:
+    #   - ./frontend/dist:/usr/share/nginx/html
+    #   - ./nginx/nginx.conf:/etc/nginx/nginx.conf
     networks:
       - webmonitor
 

@@ -23,7 +23,7 @@ LABEL maintainer="网址监控系统 <support@example.com>" \
 WORKDIR /app
 
 # 设置npm环境变量和镜像源
-ENV NODE_ENV=production
+ENV NODE_ENV=development
 ENV NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
 ENV CYPRESS_INSTALL_BINARY=0
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
@@ -36,9 +36,7 @@ COPY package*.json ./
 
 # 安装依赖 - 使用国内镜像源
 RUN npm config set registry https://registry.npmmirror.com && \
-    npm config set disturl https://npmmirror.com/dist && \
-    npm config set sass_binary_site https://npmmirror.com/mirrors/node-sass && \
-    npm install --production --no-audit --no-fund && \
+    npm install && \
     npm cache clean --force
 
 # 复制源代码

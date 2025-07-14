@@ -84,6 +84,7 @@ RUN mkdir -p /app/backend/logs \
 # 复制应用代码
 COPY backend/ ./backend/
 COPY init_database.py .
+COPY database_init.py .
 COPY run_backend.py .
 
 # 创建启动脚本（修复版）
@@ -143,30 +144,9 @@ else
     echo "⚠️ Redis连接失败，但继续启动应用"
 fi
 
-# 测试数据库连接
-echo "🔍 测试数据库连接..."
-python -c "
-import pymysql
-import os
-
-# 强制使用PyMySQL作为MySQLdb
-pymysql.install_as_MySQLdb()
-
-try:
-    connection = pymysql.connect(
-        host='mysql',
-        user=os.getenv('DB_USER', 'monitor_user'),
-        password=os.getenv('DB_PASSWORD', 'Monitor123!@#'),
-        database=os.getenv('DB_NAME', 'website_monitor'),
-        charset='utf8mb4',
-        connect_timeout=10
-    )
-    print('✅ 数据库连接测试成功')
-    connection.close()
-except Exception as e:
-    print(f'⚠️ 数据库连接失败: {e}')
-    print('继续启动应用，应用内部会重试连接')
-"
+# 初始化数据库结构
+echo "🔍 初始化数据库结构..."
+python database_init.py || echo "⚠️ 数据库初始化失败，继续启动应用"
 
 echo "🚀 启动Flask应用..."
 exec python run_backend.py

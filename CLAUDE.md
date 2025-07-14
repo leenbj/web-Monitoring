@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a comprehensive website monitoring system (网址监控系统) built with Flask backend and Vue.js frontend. The system monitors website availability, tracks status changes, sends email notifications, and provides user management capabilities.
+This is an enterprise-grade website monitoring system (网址监控系统) built with Flask backend and Vue.js frontend. The system provides real-time website monitoring, intelligent grouping, status tracking, email notifications, and comprehensive user management.
 
 ## Development Commands
 
@@ -18,11 +18,14 @@ python init_database.py
 # Start backend server (development)
 python run_backend.py
 
-# Start backend server (production with Docker)
-docker-compose up -d
-
 # Database migrations
 python database_migration_v5.py
+
+# Check dependencies
+pip install -r requirements.txt
+
+# Create admin user
+python create_admin_user.py
 ```
 
 ### Frontend Development
@@ -44,8 +47,23 @@ npm run preview
 
 ### Docker Operations
 ```bash
-# Build and start all services
+# Quick start (auto-build and deploy)
+bash quick_start.sh
+
+# Build images only
+bash build_images.sh
+
+# Full build and deploy
+bash build_and_deploy.sh
+
+# Standard deployment
 docker-compose up -d
+
+# Backend only
+docker-compose -f docker-compose.backend-only.yml up -d
+
+# Production environment
+docker-compose -f docker-compose.prod.yml up -d
 
 # Check service status
 docker-compose ps
@@ -55,220 +73,339 @@ docker-compose logs -f backend
 
 # Stop services
 docker-compose down
+
+# Reset and rebuild
+docker-compose down -v && docker-compose up -d --build
+```
+
+### Local Image Building
+```bash
+# Build backend image
+docker build -t web-monitoring-backend:latest -f Dockerfile .
+
+# Build frontend image
+cd frontend
+docker build -t web-monitoring-frontend:latest -f Dockerfile .
+
+# Build both images
+bash build_images.sh
+
+# Build and deploy in one command
+bash build_and_deploy.sh
+```
+
+### Database Operations
+```bash
+# MySQL connection test
+mysql -u webmonitor -p -h localhost -P 33061 website_monitor
+
+# Backup database
+mysqldump -u webmonitor -p -h localhost -P 33061 website_monitor > backup.sql
+
+# Restore database
+mysql -u webmonitor -p -h localhost -P 33061 website_monitor < backup.sql
 ```
 
 ## Architecture Overview
 
-### Backend Structure
-- **Flask Application**: Main app factory in `backend/app.py`
-- **Database Models**: SQLAlchemy models in `backend/models.py`
-- **API Endpoints**: RESTful APIs in `backend/api/` directory
-- **Services**: Business logic in `backend/services/` directory
-- **Configuration**: Environment-based config in `backend/config.py`
+### Application Factory Pattern
+The Flask application uses a factory pattern in `backend/app.py` with modular blueprint registration:
+- Authentication, website management, task scheduling, file handling
+- Unified error handling for 404, 405, 400, 500 responses
+- Request/response logging and performance monitoring
+- CORS configuration and JWT token management
 
-### Key Backend Components
-- **Authentication**: JWT-based user authentication (`backend/api/auth.py`)
-- **Website Detection**: Asynchronous website monitoring (`backend/services/website_detector.py`)
-- **Task Scheduling**: APScheduler for automated monitoring (`backend/services/scheduler_service.py`)
-- **Memory Management**: Optimized memory usage (`backend/services/memory_monitor.py`)
-- **File Management**: Upload/download handling (`backend/api/files.py`)
+### Backend Service Architecture
+**Core Services Pattern**: Business logic separated into `backend/services/` with specialized responsibilities:
+- **Scheduler Service**: Thread-pool based task scheduling with adaptive sleep strategy
+- **Detection Service**: Batch processing (batch_size=10, max_concurrent=5) with memory limits
+- **Website Detector**: Three-state detection engine (standard/redirect/failed) with SSL validation
+- **Memory Monitor**: Real-time memory monitoring with automatic cleanup
+- **Email Notification**: SMTP-based alerting with template support
 
-### Frontend Structure
-- **Vue 3**: Main framework with Composition API
-- **Element Plus**: UI component library
-- **Pinia**: State management
-- **Vue Router**: Client-side routing
-- **Vite**: Build tool and development server
+### Database Model Relationships
+**Entity Architecture** in `backend/models.py`:
+- **Many-to-many**: DetectionTask ↔ Website (through `task_websites` table)
+- **One-to-many**: WebsiteGroup → Website, DetectionTask → DetectionRecord
+- **Status Tracking**: WebsiteStatusChange with automatic state transitions
+- **User Management**: Role-based access control (admin/user)
+- **Composite Indexes**: Optimized queries on time, status, and website_id
 
-### Key Frontend Components
-- **Authentication**: User store and login system (`frontend/src/stores/user.js`)
-- **API Integration**: Axios-based API client (`frontend/src/utils/api.js`)
-- **Performance Monitoring**: Client-side performance tracking (`frontend/src/utils/performance.js`)
-- **Routing**: Protected routes and navigation (`frontend/src/router/index.js`)
+### Frontend State Management
+**Pinia Store Pattern** in `frontend/src/stores/user.js`:
+- Reactive state: user, token, refreshToken with computed properties
+- Authentication methods: login, logout, refresh with localStorage persistence
+- Permission system: hasPermission, isAdmin, userRole validation
+- Auto-refresh mechanism for token expiration handling
 
-## Database Schema
+### API Architecture
+**RESTful Design** with consistent response format:
+- Authentication: JWT-based stateless authentication
+- Caching: 30-second request caching with Axios interceptors
+- Error handling: Unified error format with automatic retry logic
+- Rate limiting: Per-user request limits with Flask-Limiter
 
-### Core Tables
-- `websites`: Website information and URLs
-- `website_groups`: Website grouping and organization
-- `detection_records`: Website monitoring results
-- `detection_tasks`: Scheduled monitoring tasks
-- `website_status_changes`: Status change tracking
-- `users`: User authentication and management
-- `system_settings`: Application configuration
-
-### Key Relationships
-- Websites belong to groups (many-to-one)
-- Detection records link to websites and tasks
-- Status changes track website state transitions
-- Tasks can monitor multiple websites (many-to-many)
+### Task Scheduling System
+**APScheduler Integration** with advanced features:
+- Adaptive scheduling: Load-based frequency adjustment
+- Concurrent task management: Thread pool with configurable limits
+- Failed site monitoring: High-frequency monitoring for failed websites
+- Memory-aware scheduling: Automatic cleanup based on memory usage
 
 ## Configuration
 
-### Environment Variables
-```bash
-# Database
-DATABASE_URL=mysql://user:password@localhost:3306/website_monitor
-# or
-DATABASE_URL=sqlite:///database/website_monitor.db
+### Environment-Based Configuration
+Configuration is managed through `backend/config.py` with three environments:
+- **Development**: Debug enabled, SQL echo, SQLite default
+- **Production**: Security headers, session cookies, MySQL required
+- **Testing**: In-memory SQLite, CSRF disabled
 
-# Security
-SECRET_KEY=your-secret-key-change-in-production
-JWT_SECRET_KEY=your-jwt-secret
+### Critical Configuration Sections
+```python
+# Detection engine configuration
+DETECTION_CONFIG = {
+    'min_interval_minutes': 10,
+    'max_concurrent': 20,
+    'timeout_seconds': 30,
+    'retry_times': 3,
+    'follow_redirects': True,
+    'verify_ssl': False
+}
 
-# Email Settings
-MAIL_SERVER=smtp.qq.com
-MAIL_PORT=587
-MAIL_USE_TLS=true
-MAIL_USERNAME=your-email@qq.com
-MAIL_PASSWORD=your-app-password
+# Task scheduler configuration
+SCHEDULER_CONFIG = {
+    'timezone': 'Asia/Shanghai',
+    'job_defaults': {
+        'coalesce': False,
+        'max_instances': 3
+    }
+}
 
-# Application
-FLASK_ENV=production
-LOG_LEVEL=INFO
+# Data retention policies
+DATA_RETENTION = {
+    'detection_records_days': 90,
+    'log_files_days': 30,
+    'upload_files_days': 7
+}
 ```
 
-### Default Login Credentials
+### Docker Environment Variables
+```bash
+# Database connection
+DATABASE_URL=mysql://webmonitor:webmonitor123@mysql:3306/website_monitor
+
+# Redis cache
+REDIS_HOST=redis
+REDIS_PORT=6379
+
+# Application security
+SECRET_KEY=WebMonitorSecretKey2024ChangeMeInProduction
+FLASK_ENV=production
+```
+
+### Default Credentials
 - Username: `admin`
 - Password: `admin123`
+- Change immediately after first login
 
-## Development Guidelines
+### Admin Login Fix (If Login Fails)
+If you encounter "username or password incorrect" error after Docker deployment:
 
-### Backend Development
-- Follow Flask blueprint pattern for API organization
-- Use SQLAlchemy models with proper relationships
-- Implement proper error handling and logging
-- Use decorators for authentication and rate limiting
-- Optimize database queries with proper indexing
-
-### Frontend Development
-- Use Vue 3 Composition API consistently
-- Implement reactive state management with Pinia
-- Follow Element Plus component patterns
-- Use async/await for API calls
-- Implement proper error handling and user feedback
-
-### Code Quality
-- Backend: Follow PEP 8 style guide
-- Frontend: Use ESLint and Prettier for formatting
-- Write descriptive commit messages
-- Use meaningful variable and function names
-- Implement proper error handling
-
-## Testing
-
-### Backend Testing
 ```bash
-# Run tests (when implemented)
-python -m pytest tests/
+# Method 1: Run fix script in container
+docker compose exec backend python3 fix_login_container.py
 
-# Test database connection
-python -c "from backend.database import get_db; print('DB connection OK')"
+# Method 2: Run fix script locally
+python3 create_admin_fixed.py
+
+# Method 3: Manual fix via Docker exec
+docker compose exec backend python3 -c "
+import sys, os
+sys.path.insert(0, '/app')
+os.environ['DATABASE_URL'] = 'mysql://webmonitor:webmonitor123@mysql:3306/website_monitor'
+
+from backend.app import create_app
+from backend.models import User
+from backend.database import get_db
+
+app = create_app()
+with app.app_context():
+    with get_db() as db:
+        # Delete existing admin
+        existing = db.query(User).filter(User.username == 'admin').first()
+        if existing:
+            db.delete(existing)
+            db.commit()
+        
+        # Create new admin
+        admin = User(username='admin', email='admin@example.com', role='admin', status='active')
+        admin.set_password('admin123')
+        db.add(admin)
+        db.commit()
+        print('Admin user created successfully!')
+"
+
+# Method 4: Run the deployment fix script
+bash deployment/fix-admin-login.sh
 ```
 
-### Frontend Testing
-```bash
-cd frontend
+## Deployment Architecture
 
-# Run unit tests (when implemented)
-npm test
+### Multi-Environment Docker Setup
+The project supports multiple deployment configurations:
+- **docker-compose.yml**: Full development stack (MySQL, Redis, Backend, Frontend)
+- **docker-compose.prod.yml**: Production optimized with resource limits
+- **docker-compose.backend-only.yml**: Backend-only deployment
+- **docker-compose.with-nginx.yml**: Nginx reverse proxy included
 
-# Check build
-npm run build
+### Service Dependencies
+```yaml
+# Health check dependencies
+backend:
+  depends_on:
+    mysql:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
 ```
 
-## Performance Optimization
+### Volume Management
+Persistent data volumes:
+- `mysql_data`: Database persistence
+- `redis_data`: Cache persistence
+- `backend_data`: Application logs
+- `backend_uploads`: File uploads
+- `backend_downloads`: Export files
 
-### Backend Optimizations
-- Connection pooling for database
-- Memory monitoring and garbage collection
-- Async HTTP requests for website detection
-- Caching with Redis (optional)
-- Task scheduling optimization
+## Performance Characteristics
 
-### Frontend Optimizations
-- Code splitting and lazy loading
-- Element Plus tree-shaking
-- Optimized build configuration
-- Component-level performance monitoring
-- API response caching
+### Memory Optimization
+- **Optimized from 500MB+ to <200MB** (60-70% reduction)
+- Real-time memory monitoring via `memory_monitor.py`
+- Automatic garbage collection and cleanup
+- Memory-aware task scheduling
 
-## Common Issues and Solutions
+### Detection Performance
+- **Batch processing**: 10 websites per batch, 5 concurrent batches
+- **Adaptive scheduling**: Load-based frequency adjustment
+- **Three-state detection**: Standard, redirect, failed states
+- **SSL validation**: Optional certificate verification
 
-### Database Connection Issues
-- Check MySQL/SQLite connection strings
-- Verify database permissions
-- Run database initialization script
-- Check for port conflicts
+### Caching Strategy
+- **Frontend**: 30-second API response caching
+- **Backend**: Redis-based session and data caching
+- **Database**: Connection pooling with pre-ping validation
 
-### Memory Management
-- Monitor memory usage in production
-- Use memory optimization services
-- Implement proper cleanup on shutdown
-- Regular garbage collection
+## Common Development Patterns
 
-### Email Notifications
-- Verify SMTP server settings
-- Check email credentials and app passwords
-- Ensure firewall allows SMTP ports
-- Test email configuration
-
-## Deployment
-
-### Docker Deployment (Recommended)
-```bash
-# Full stack deployment
-docker-compose up -d
-
-# Production environment variables
-cp .env.template .env
-# Edit .env with production values
+### Error Handling Pattern
+```python
+# Backend API responses
+{
+    "success": True/False,
+    "message": "Description",
+    "data": {...},
+    "error": {...}  # Only when success=False
+}
 ```
 
-### Manual Deployment
-```bash
-# Backend
-pip install -r requirements.txt
-python init_database.py
-python run_backend.py
+### Authentication Flow
+1. JWT token authentication with refresh mechanism
+2. Role-based access control (admin/user)
+3. Route guards in frontend with permission checks
+4. Auto-refresh on token expiration
 
-# Frontend
-cd frontend
-npm install
-npm run build
-# Deploy dist/ to web server
+### Database Migration Pattern
+- Use `database_migration_v*.py` for schema changes
+- Always backup before running migrations
+- Test migrations in development environment first
+
+## Troubleshooting
+
+### Container Issues
+```bash
+# Check container logs
+docker-compose logs -f [service-name]
+
+# Check health status
+docker-compose ps
+
+# Restart specific service
+docker-compose restart [service-name]
+
+# Clean rebuild
+docker-compose down -v && docker-compose build --no-cache
 ```
 
-## Security Considerations
+### Database Connection Problems
+```bash
+# Test MySQL connection
+mysql -u webmonitor -p -h localhost -P 33061
 
-- Change default admin credentials
-- Use strong SECRET_KEY in production
-- Enable HTTPS in production
-- Regular security updates
+# Check MySQL container logs
+docker-compose logs mysql
+
+# Reset MySQL data
+docker-compose down -v && docker volume rm webmonitor_mysql_data
+```
+
+### Memory Issues
+```bash
+# Monitor memory usage
+docker stats
+
+# Check backend memory logs
+docker-compose logs backend | grep -i memory
+
+# Restart backend to clear memory
+docker-compose restart backend
+```
+
+## Security Implementation
+
+### Authentication Security
+- JWT tokens with configurable expiration
+- Refresh token mechanism to prevent session hijacking
+- Password hashing with secure algorithms
+- Rate limiting on authentication endpoints
+
+### API Security
+- CORS configuration for cross-origin requests
 - Input validation and sanitization
-- Rate limiting on APIs
-- Secure database connections
+- SQL injection prevention through SQLAlchemy ORM
+- Request size limits and timeout controls
 
-## API Documentation
+### Production Security
+- Secure session cookies (HttpOnly, Secure, SameSite)
+- Environment-based configuration separation
+- Database credentials management
+- HTTPS enforcement in production
 
-### Authentication
-- `POST /api/auth/login`: User login
-- `POST /api/auth/logout`: User logout
-- `GET /api/auth/user`: Get current user
+## Database Repair and Maintenance
 
-### Website Management
-- `GET /api/websites`: List websites
-- `POST /api/websites`: Add website
-- `PUT /api/websites/{id}`: Update website
-- `DELETE /api/websites/{id}`: Delete website
+### Critical Fix (2025-07-14)
+System encountered database structure mismatch issues causing frontend error "Cannot read properties of null (reading 'websites')". Completely fixed through:
 
-### Monitoring
-- `GET /api/results`: Get monitoring results
-- `GET /api/status-changes`: Get status changes
-- `POST /api/tasks`: Create monitoring task
-- `GET /api/tasks/{id}/run`: Run task manually
+1. **Issue Diagnosis**: Database `websites` table missing required fields (`domain`, `original_url`, `normalized_url`, `description`, `group_id`)
+2. **Database Repair**: Created comprehensive database initialization and repair scripts
+3. **Structure Validation**: Ensured all table structures match application models
 
-### System
-- `GET /api/health`: Health check
-- `GET /api/system/info`: System information
-- `GET /api/performance`: Performance metrics
+### Database Repair Scripts
+```bash
+# Fix database structure within container
+docker-compose exec -T backend python3 /app/fix_database_container.py
+
+# Or use complete initialization script
+python3 database_init.py
+```
+
+### Required Database Fields
+`websites` table must contain:
+- id, name, url, domain, original_url, normalized_url
+- description, group_id, is_active, check_interval, timeout
+- created_at, updated_at
+
+### Preventive Measures
+- Built Docker images include `database_init.py` auto-initialization script
+- Startup scripts automatically check and repair database structure
+- Deployment to any platform won't encounter the same database issues
