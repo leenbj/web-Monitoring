@@ -1,22 +1,11 @@
-# 网址监控系统 - Python依赖 (修复版)
-# 包含所有必需的依赖，确保应用正常运行
-
 # Flask Web框架和相关扩展
 Flask==2.3.3
 Flask-SQLAlchemy==3.0.5
 Flask-CORS==4.0.0
 Flask-Mail==0.9.1
-Flask-JWT-Extended==4.5.3
-Flask-Limiter==3.5.0
-Werkzeug==2.3.7
 
 # 数据库相关
 SQLAlchemy>=2.0.30
-PyMySQL==1.1.0
-mysqlclient==2.2.7
-
-# Redis客户端
-redis==5.0.1
 
 # 定时任务调度
 APScheduler==3.10.4
@@ -47,24 +36,20 @@ marshmallow==3.20.1
 python-dotenv==1.0.0
 
 # 字符编码检测
-chardet==5.2.0
+chardet==5.2.0 
+
+# JWT认证
+flask-jwt-extended==4.5.3
+
+# API限流
+flask-limiter==3.5.0
+
+# MySQL数据库驱动
+PyMySQL==1.1.0
+
+# Redis客户端
+redis==5.0.1
 
 # 加密和安全
 cryptography==41.0.7
-bcrypt==4.1.2
-
-# Web服务器
-gunicorn==21.2.0
-
-# 额外的依赖（确保完整性）
-click==8.1.7
-itsdangerous==2.1.2
-Jinja2==3.1.2
-MarkupSafe==2.1.3
-blinker==1.6.3
-importlib-metadata==6.8.0
-typing-extensions==4.8.0
-packaging==23.2
-six==1.16.0
-pytz==2023.3
-tzlocal==5.2
+bcrypt==4.1.2 

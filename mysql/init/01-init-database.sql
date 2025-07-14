@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS monitoring_results (
     FOREIGN KEY (website_id) REFERENCES websites(id) ON DELETE CASCADE
 );
 
--- 创建索引
-CREATE INDEX IF NOT EXISTS idx_website_id ON monitoring_results(website_id);
-CREATE INDEX IF NOT EXISTS idx_checked_at ON monitoring_results(checked_at);
-CREATE INDEX IF NOT EXISTS idx_is_up ON monitoring_results(is_up); 
+-- 创建索引 (MySQL 8.0兼容)
+CREATE INDEX idx_website_id ON monitoring_results(website_id);
+CREATE INDEX idx_checked_at ON monitoring_results(checked_at);
+CREATE INDEX idx_is_up ON monitoring_results(is_up); 

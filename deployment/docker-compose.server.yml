@@ -1,10 +1,8 @@
-# 网址监控系统 - 宝塔面板Docker Compose配置
-# 适用于宝塔面板环境的Docker容器编排
-
-version: '3.8'
+# 网址监控系统 - 服务器部署配置
+# 使用Docker Hub镜像: leenbj68719929/website-monitor-backend
 
 services:
-  # 后端服务 - 使用Docker Hub镜像
+  # 后端服务
   backend:
     image: leenbj68719929/website-monitor-backend:latest
     container_name: website-monitor-backend
@@ -12,19 +10,19 @@ services:
     
     environment:
       # 数据库配置
-      - DATABASE_URL=mysql://${DB_USER}:${DB_PASSWORD}@mysql:3306/${DB_NAME}
-      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - DATABASE_URL=mysql://monitor_user:Monitor123!@#@mysql:3306/website_monitor
+      - REDIS_URL=redis://:Redis123!@#@redis:6379/0
       
       # 应用安全配置
-      - SECRET_KEY=${SECRET_KEY}
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - SECRET_KEY=4f8a2c9d7e1b6a3f8c2e9d4b7a1f6c3e
+      - JWT_SECRET_KEY=9b2e5f8a1c4d7e0b3f6a9c2e5f8b1d4a
       
-      # 邮件配置
-      - MAIL_SERVER=${MAIL_SERVER}
-      - MAIL_PORT=${MAIL_PORT}
-      - MAIL_USE_TLS=${MAIL_USE_TLS}
-      - MAIL_USERNAME=${MAIL_USERNAME}
-      - MAIL_PASSWORD=${MAIL_PASSWORD}
+      # 邮件配置 (请修改为实际邮箱)
+      - MAIL_SERVER=smtp.qq.com
+      - MAIL_PORT=587
+      - MAIL_USE_TLS=true
+      - MAIL_USERNAME=your_email@qq.com
+      - MAIL_PASSWORD=your_qq_app_password
       
       # 运行环境配置
       - FLASK_ENV=production
@@ -33,7 +31,7 @@ services:
       - PYTHONUNBUFFERED=1
     
     ports:
-      - "5017:5000"
+      - "5000:5000"
     
     volumes:
       # 数据持久化
@@ -75,10 +73,10 @@ services:
     restart: unless-stopped
     
     environment:
-      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
-      - MYSQL_DATABASE=${DB_NAME}
-      - MYSQL_USER=${DB_USER}
-      - MYSQL_PASSWORD=${DB_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=RootPassword123!@#
+      - MYSQL_DATABASE=website_monitor
+      - MYSQL_USER=monitor_user
+      - MYSQL_PASSWORD=Monitor123!@#
       - TZ=Asia/Shanghai
     
     ports:
@@ -101,7 +99,7 @@ services:
       - monitor_network
     
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${DB_USER}", "-p${DB_PASSWORD}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "monitor_user", "-pMonitor123!@#"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -124,7 +122,7 @@ services:
     
     command: >
       redis-server 
-      --requirepass ${REDIS_PASSWORD}
+      --requirepass Redis123!@#
       --appendonly yes
       --maxmemory 256mb
       --maxmemory-policy allkeys-lru
@@ -140,7 +138,7 @@ services:
       - monitor_network
     
     healthcheck:
-      test: ["CMD", "redis-cli", "auth", "${REDIS_PASSWORD}", "ping"]
+      test: ["CMD", "redis-cli", "auth", "Redis123!@#", "ping"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -163,9 +161,9 @@ services:
     environment:
       - PMA_HOST=mysql
       - PMA_PORT=3306
-      - PMA_USER=${DB_USER}
-      - PMA_PASSWORD=${DB_PASSWORD}
-      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+      - PMA_USER=monitor_user
+      - PMA_PASSWORD=Monitor123!@#
+      - MYSQL_ROOT_PASSWORD=RootPassword123!@#
       - UPLOAD_LIMIT=100M
     
     ports:
@@ -183,42 +181,6 @@ services:
         limits:
           memory: 256M
           cpus: '0.25'
-
-  # 可选：Redis管理工具
-  redis-commander:
-    image: rediscommander/redis-commander:latest
-    container_name: website-monitor-redis-commander
-    restart: unless-stopped
-    
-    environment:
-      - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD}
-      - HTTP_USER=${REDIS_ADMIN_USER:-admin}
-      - HTTP_PASSWORD=${REDIS_ADMIN_PASSWORD:-admin123}
-    
-    ports:
-      - "8081:8081"
-    
-    depends_on:
-      redis:
-        condition: service_healthy
-    
-    networks:
-      - monitor_network
-    
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-          cpus: '0.25'
-
-# 数据卷配置
-volumes:
-  mysql_data:
-    driver: local
-  redis_data:
-    driver: local
-  backend_data:
-    driver: local
 
 # 网络配置
 networks:

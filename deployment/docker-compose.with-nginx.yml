@@ -1,10 +1,8 @@
-# 网址监控系统 - 宝塔面板Docker Compose配置
-# 适用于宝塔面板环境的Docker容器编排
-
-version: '3.8'
+# 网址监控系统 - 包含Nginx的完整部署配置
+# 支持自定义端口，避免端口冲突
 
 services:
-  # 后端服务 - 使用Docker Hub镜像
+  # 后端服务
   backend:
     image: leenbj68719929/website-monitor-backend:latest
     container_name: website-monitor-backend
@@ -28,15 +26,14 @@ services:
       
       # 运行环境配置
       - FLASK_ENV=production
-      - LOG_LEVEL=INFO
-      - TZ=Asia/Shanghai
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - TZ=${TZ:-Asia/Shanghai}
       - PYTHONUNBUFFERED=1
     
     ports:
-      - "5017:5000"
+      - "${BACKEND_PORT:-5000}:5000"
     
     volumes:
-      # 数据持久化
       - ./data/backend:/app/database
       - ./logs/backend:/app/backend/logs
       - ./uploads:/app/backend/uploads
@@ -58,15 +55,42 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+  
+  # Nginx反向代理和静态文件服务
+  nginx:
+    image: nginx:alpine
+    container_name: website-monitor-nginx
+    restart: unless-stopped
+    
+    ports:
+      - "${NGINX_HTTP_PORT:-85}:80"
+      - "${NGINX_HTTPS_PORT:-448}:443"
+    
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./frontend/dist:/var/www/html
+      - ./ssl:/etc/ssl/certs
+      - ./logs/nginx:/var/log/nginx
+    
+    depends_on:
+      - backend
+    
+    networks:
+      - monitor_network
+      - frontend_network
+    
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     
     deploy:
       resources:
         limits:
-          memory: 1G
-          cpus: '1.0'
-        reservations:
-          memory: 512M
-          cpus: '0.5'
+          memory: 128M
+          cpus: '0.25'
   
   # MySQL数据库
   mysql:
@@ -79,10 +103,10 @@ services:
       - MYSQL_DATABASE=${DB_NAME}
       - MYSQL_USER=${DB_USER}
       - MYSQL_PASSWORD=${DB_PASSWORD}
-      - TZ=Asia/Shanghai
+      - TZ=${TZ:-Asia/Shanghai}
     
     ports:
-      - "3306:3306"
+      - "${MYSQL_PORT:-3306}:3306"
     
     volumes:
       - ./data/mysql:/var/lib/mysql
@@ -130,7 +154,7 @@ services:
       --maxmemory-policy allkeys-lru
     
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     
     volumes:
       - ./data/redis:/data
@@ -154,7 +178,7 @@ services:
           memory: 128M
           cpus: '0.25'
 
-  # 可选：PhpMyAdmin数据库管理工具
+  # PhpMyAdmin数据库管理工具
   phpmyadmin:
     image: phpmyadmin/phpmyadmin:latest
     container_name: website-monitor-phpmyadmin
@@ -169,7 +193,7 @@ services:
       - UPLOAD_LIMIT=100M
     
     ports:
-      - "8080:80"
+      - "${PHPMYADMIN_PORT:-8080}:80"
     
     depends_on:
       mysql:
@@ -184,7 +208,7 @@ services:
           memory: 256M
           cpus: '0.25'
 
-  # 可选：Redis管理工具
+  # Redis管理工具
   redis-commander:
     image: rediscommander/redis-commander:latest
     container_name: website-monitor-redis-commander
@@ -196,7 +220,7 @@ services:
       - HTTP_PASSWORD=${REDIS_ADMIN_PASSWORD:-admin123}
     
     ports:
-      - "8081:8081"
+      - "${REDIS_COMMANDER_PORT:-8081}:8081"
     
     depends_on:
       redis:
@@ -211,19 +235,10 @@ services:
           memory: 128M
           cpus: '0.25'
 
-# 数据卷配置
-volumes:
-  mysql_data:
-    driver: local
-  redis_data:
-    driver: local
-  backend_data:
-    driver: local
-
 # 网络配置
 networks:
   monitor_network:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
+    internal: true
+  frontend_network:
+    driver: bridge

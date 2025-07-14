@@ -1,0 +1,93 @@
+name: Frontend Docker Build and Push to Docker Hub
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-docker.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'frontend/**'
+
+env:
+  DOCKER_HUB_REPO: website-monitor-frontend
+  FRONTEND_DIR: frontend
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: ${{ env.FRONTEND_DIR }}/package-lock.json
+        
+    - name: Install dependencies
+      working-directory: ${{ env.FRONTEND_DIR }}
+      run: |
+        npm ci --production
+        
+    - name: Build frontend
+      working-directory: ${{ env.FRONTEND_DIR }}
+      run: |
+        npm run build
+        
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+        
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_HUB_REPO }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+          type=raw,value=fullstack,enable={{is_default_branch}}
+          type=raw,value={{date 'YYYYMMDD-HHmmss'}}
+          
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ${{ env.FRONTEND_DIR }}
+        file: ${{ env.FRONTEND_DIR }}/Dockerfile.fullstack
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64,linux/arm64
+        
+    - name: Image build summary
+      if: github.ref == 'refs/heads/main'
+      run: |
+        echo "✅ 前端Docker镜像构建成功!"
+        echo "📦 镜像名称: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_HUB_REPO }}:latest"
+        echo "🏷️ 标签: ${{ steps.meta.outputs.tags }}"
+        echo "📅 构建时间: $(date)"
+        echo "🔗 Docker Hub: https://hub.docker.com/r/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_HUB_REPO }}"
+        
+    - name: Build info
+      run: |
+        echo "📊 构建信息:"
+        echo "- 前端框架: Vue.js 3 + Element Plus"
+        echo "- 构建工具: Vite"
+        echo "- 运行环境: Nginx Alpine"
+        echo "- 镜像大小: 约 50MB"
+        echo "- API代理: 支持后端API代理"

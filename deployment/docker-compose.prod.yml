@@ -1,12 +1,10 @@
 # 网址监控系统 - 生产环境Docker Compose配置
 # 前后端分离部署方案
 
-version: '3.8'
-
 services:
   # 后端服务
   backend:
-    image: ghcr.io/yourusername/website-monitor/backend:latest
+    image: leenbj68719929/website-monitor-backend:latest
     container_name: website-monitor-backend
     restart: unless-stopped
     

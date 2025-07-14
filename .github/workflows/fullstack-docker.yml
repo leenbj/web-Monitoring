@@ -1,0 +1,144 @@
+name: Full Stack Docker Build and Push to Docker Hub
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'requirements.txt'
+      - 'Dockerfile'
+      - 'docker-compose.fullstack.yml'
+      - '.github/workflows/fullstack-docker.yml'
+  workflow_dispatch:
+    inputs:
+      push_to_hub:
+        description: 'Push images to Docker Hub'
+        required: true
+        default: 'true'
+        type: boolean
+
+env:
+  BACKEND_REPO: website-monitor-backend
+  FRONTEND_REPO: website-monitor-frontend
+  FRONTEND_DIR: frontend
+
+jobs:
+  build-backend:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Log in to Docker Hub
+      if: github.event_name == 'push' || github.event.inputs.push_to_hub == 'true'
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+        
+    - name: Extract backend metadata
+      id: meta-backend
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.BACKEND_REPO }}
+        tags: |
+          type=raw,value=latest
+          type=raw,value=fixed
+          type=raw,value={{date 'YYYYMMDD-HHmmss'}}
+          
+    - name: Build and push backend image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: ${{ github.event_name == 'push' || github.event.inputs.push_to_hub == 'true' }}
+        tags: ${{ steps.meta-backend.outputs.tags }}
+        labels: ${{ steps.meta-backend.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64,linux/arm64
+        
+  build-frontend:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: ${{ env.FRONTEND_DIR }}/package-lock.json
+        
+    - name: Install dependencies
+      working-directory: ${{ env.FRONTEND_DIR }}
+      run: |
+        npm ci --production
+        
+    - name: Build frontend
+      working-directory: ${{ env.FRONTEND_DIR }}
+      run: |
+        npm run build
+        
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Log in to Docker Hub
+      if: github.event_name == 'push' || github.event.inputs.push_to_hub == 'true'
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+        
+    - name: Extract frontend metadata
+      id: meta-frontend
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_REPO }}
+        tags: |
+          type=raw,value=latest
+          type=raw,value=fullstack
+          type=raw,value={{date 'YYYYMMDD-HHmmss'}}
+          
+    - name: Build and push frontend image
+      uses: docker/build-push-action@v5
+      with:
+        context: ${{ env.FRONTEND_DIR }}
+        file: ${{ env.FRONTEND_DIR }}/Dockerfile.fullstack
+        push: ${{ github.event_name == 'push' || github.event.inputs.push_to_hub == 'true' }}
+        tags: ${{ steps.meta-frontend.outputs.tags }}
+        labels: ${{ steps.meta-frontend.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64,linux/arm64
+        
+  deploy-summary:
+    runs-on: ubuntu-latest
+    needs: [build-backend, build-frontend]
+    if: always()
+    
+    steps:
+    - name: Deployment summary
+      run: |
+        echo "🚀 网址监控系统 - 全栈部署完成"
+        echo "================================="
+        echo "✅ 后端镜像: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.BACKEND_REPO }}:latest"
+        echo "✅ 前端镜像: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_REPO }}:latest"
+        echo ""
+        echo "📋 部署命令:"
+        echo "docker-compose -f docker-compose.fullstack.yml up -d"
+        echo ""
+        echo "🔗 访问地址:"
+        echo "- 前端: http://localhost"
+        echo "- 后端API: http://localhost:5013"
+        echo "- 数据库: localhost:3306"
+        echo "- Redis: localhost:6379"
+        echo ""
+        echo "📖 更多信息请查看部署文档"

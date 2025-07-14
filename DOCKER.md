@@ -21,7 +21,7 @@
 
 ```bash
 # 拉取镜像
-docker pull your-username/website-monitor-backend:latest
+docker pull leenbj68719929/website-monitor-backend:latest
 
 # 运行容器
 docker run -d \
@@ -30,7 +30,7 @@ docker run -d \
   -e DATABASE_URL=mysql://user:password@host:3306/database \
   -e SECRET_KEY=your-secret-key \
   -e JWT_SECRET_KEY=your-jwt-secret \
-  your-username/website-monitor-backend:latest
+  leenbj68719929/website-monitor-backend:latest
 ```
 
 ### 使用Docker Compose
@@ -39,7 +39,7 @@ docker run -d \
 version: '3.8'
 services:
   backend:
-    image: your-username/website-monitor-backend:latest
+    image: leenbj68719929/website-monitor-backend:latest
     ports:
       - "5000:5000"
     environment:

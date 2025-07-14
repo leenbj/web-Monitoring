@@ -1,0 +1,98 @@
+# 网址监控系统 - 简化部署配置
+# 只包含核心服务，快速启动
+
+services:
+  # 后端API服务
+  backend:
+    image: leenbj68719929/website-monitor-backend:fixed
+    container_name: website-monitor-backend
+    restart: unless-stopped
+    
+    environment:
+      - DATABASE_URL=mysql://monitor_user:Monitor123%21%40%23@mysql:3306/website_monitor
+      - REDIS_URL=redis://:Redis123%21%40%23@redis:6379/0
+      - SECRET_KEY=website-monitor-secret-key-12345678901234567890abcdef
+      - JWT_SECRET_KEY=website-monitor-jwt-secret-12345678901234567890abcdef
+      - FLASK_ENV=production
+      - TZ=Asia/Shanghai
+      - PYTHONUNBUFFERED=1
+    
+    ports:
+      - "5013:5000"
+    
+    depends_on:
+      - mysql
+      - redis
+    
+    networks:
+      - backend_network
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+  
+  # MySQL数据库
+  mysql:
+    image: mysql:8.0
+    container_name: website-monitor-mysql
+    restart: unless-stopped
+    
+    environment:
+      - MYSQL_ROOT_PASSWORD=RootMonitor123!@#
+      - MYSQL_DATABASE=website_monitor
+      - MYSQL_USER=monitor_user
+      - MYSQL_PASSWORD=Monitor123!@#
+      - TZ=Asia/Shanghai
+    
+    ports:
+      - "3306:3306"
+    
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --max_connections=200
+      --innodb_buffer_pool_size=256M
+    
+    networks:
+      - backend_network
+    
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-umonitor_user", "-pMonitor123!@#"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+  
+  # Redis缓存
+  redis:
+    image: redis:7-alpine
+    container_name: website-monitor-redis
+    restart: unless-stopped
+    
+    command: >
+      redis-server 
+      --requirepass Redis123!@#
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    
+    ports:
+      - "6379:6379"
+    
+    networks:
+      - backend_network
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "auth", "Redis123!@#", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# 网络配置
+networks:
+  backend_network:
+    driver: bridge

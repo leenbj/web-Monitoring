@@ -469,7 +469,6 @@ class User(Base):
     username = db.Column(db.String(50), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(128), nullable=False)
     email = db.Column(db.String(100), unique=True, nullable=False, index=True)
-    real_name = db.Column(db.String(100), nullable=False)
     role = db.Column(db.String(20), nullable=False, default='user')  # admin, user
     status = db.Column(db.String(20), nullable=False, default='active')  # active, inactive, locked
     last_login_at = db.Column(db.DateTime, nullable=True)
@@ -492,7 +491,6 @@ class User(Base):
             'id': self.id,
             'username': self.username,
             'email': self.email,
-            'real_name': self.real_name,
             'role': self.role,
             'status': self.status,
             'last_login_at': self.last_login_at.isoformat() if self.last_login_at else None,
@@ -514,6 +512,65 @@ def init_db(app):
         
         # 创建默认系统设置
         create_default_settings()
+        
+        # 创建默认用户
+        create_default_user()
+
+
+def create_default_user():
+    """创建默认用户"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # 检查是否已存在admin用户
+        existing_user = db.session.query(User).filter_by(username='admin').first()
+        if existing_user:
+            logger.info("默认用户已存在")
+            return
+        
+        # 创建默认admin用户
+        admin_user = User(
+            username='admin',
+            email='admin@example.com',
+            role='admin',
+            status='active'
+        )
+        admin_user.set_password('admin123')
+        
+        db.session.add(admin_user)
+        db.session.commit()
+        logger.info("默认用户创建成功: admin/admin123")
+        
+    except Exception as e:
+        logger.error(f"创建默认用户失败: {e}")
+        db.session.rollback()
+        
+        # 如果失败，尝试使用原始SQL创建
+        try:
+            from werkzeug.security import generate_password_hash
+            import pymysql
+            
+            # 直接使用数据库连接
+            password_hash = generate_password_hash('admin123')
+            
+            # 使用原始SQL插入用户（忽略字段不匹配问题）
+            db.session.execute(
+                "INSERT IGNORE INTO users (username, email, password_hash, role, status, created_at, updated_at) VALUES (:username, :email, :password_hash, :role, :status, NOW(), NOW())",
+                {
+                    'username': 'admin',
+                    'email': 'admin@example.com', 
+                    'password_hash': password_hash,
+                    'role': 'admin',
+                    'status': 'active'
+                }
+            )
+            db.session.commit()
+            logger.info("默认用户创建成功(SQL方式): admin/admin123")
+            
+        except Exception as e2:
+            logger.error(f"SQL方式创建用户也失败: {e2}")
+            db.session.rollback()
 
 
 def create_default_settings():

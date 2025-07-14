@@ -1,18 +1,16 @@
-# 网址监控系统 - 宝塔面板Docker Compose配置
-# 适用于宝塔面板环境的Docker容器编排
-
-version: '3.8'
+# 网址监控系统 - 纯后端部署配置
+# 前后端分离方案，仅部署后端API服务
 
 services:
-  # 后端服务 - 使用Docker Hub镜像
+  # 后端API服务
   backend:
-    image: leenbj68719929/website-monitor-backend:latest
+    image: leenbj68719929/website-monitor-backend:fixed
     container_name: website-monitor-backend
     restart: unless-stopped
     
     environment:
       # 数据库配置
-      - DATABASE_URL=mysql://${DB_USER}:${DB_PASSWORD}@mysql:3306/${DB_NAME}
+      - DATABASE_URL=mysql://${DB_USER:-monitor_user}:${DB_PASSWORD}@mysql:3306/${DB_NAME:-website_monitor}
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
       
       # 应用安全配置
@@ -20,20 +18,20 @@ services:
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       
       # 邮件配置
-      - MAIL_SERVER=${MAIL_SERVER}
-      - MAIL_PORT=${MAIL_PORT}
-      - MAIL_USE_TLS=${MAIL_USE_TLS}
+      - MAIL_SERVER=${MAIL_SERVER:-smtp.qq.com}
+      - MAIL_PORT=${MAIL_PORT:-587}
+      - MAIL_USE_TLS=${MAIL_USE_TLS:-true}
       - MAIL_USERNAME=${MAIL_USERNAME}
       - MAIL_PASSWORD=${MAIL_PASSWORD}
       
       # 运行环境配置
       - FLASK_ENV=production
-      - LOG_LEVEL=INFO
-      - TZ=Asia/Shanghai
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - TZ=${TZ:-Asia/Shanghai}
       - PYTHONUNBUFFERED=1
     
     ports:
-      - "5017:5000"
+      - "5013:5000"  # 映射到5013端口
     
     volumes:
       # 数据持久化
@@ -50,7 +48,7 @@ services:
         condition: service_healthy
     
     networks:
-      - monitor_network
+      - backend_network
     
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
@@ -76,13 +74,13 @@ services:
     
     environment:
       - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
-      - MYSQL_DATABASE=${DB_NAME}
-      - MYSQL_USER=${DB_USER}
+      - MYSQL_DATABASE=${DB_NAME:-website_monitor}
+      - MYSQL_USER=${DB_USER:-monitor_user}
       - MYSQL_PASSWORD=${DB_PASSWORD}
-      - TZ=Asia/Shanghai
+      - TZ=${TZ:-Asia/Shanghai}
     
     ports:
-      - "3306:3306"
+      - "${MYSQL_PORT:-3306}:3306"
     
     volumes:
       - ./data/mysql:/var/lib/mysql
@@ -98,10 +96,10 @@ services:
       --innodb_buffer_pool_size=256M
     
     networks:
-      - monitor_network
+      - backend_network
     
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${DB_USER}", "-p${DB_PASSWORD}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${DB_USER:-monitor_user}", "-p${DB_PASSWORD}"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -130,14 +128,13 @@ services:
       --maxmemory-policy allkeys-lru
     
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     
     volumes:
       - ./data/redis:/data
-      - ./redis/conf:/usr/local/etc/redis
     
     networks:
-      - monitor_network
+      - backend_network
     
     healthcheck:
       test: ["CMD", "redis-cli", "auth", "${REDIS_PASSWORD}", "ping"]
@@ -163,20 +160,20 @@ services:
     environment:
       - PMA_HOST=mysql
       - PMA_PORT=3306
-      - PMA_USER=${DB_USER}
+      - PMA_USER=${DB_USER:-monitor_user}
       - PMA_PASSWORD=${DB_PASSWORD}
       - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
       - UPLOAD_LIMIT=100M
     
     ports:
-      - "8080:80"
+      - "${PHPMYADMIN_PORT:-8080}:80"
     
     depends_on:
       mysql:
         condition: service_healthy
     
     networks:
-      - monitor_network
+      - backend_network
     
     deploy:
       resources:
@@ -184,46 +181,8 @@ services:
           memory: 256M
           cpus: '0.25'
 
-  # 可选：Redis管理工具
-  redis-commander:
-    image: rediscommander/redis-commander:latest
-    container_name: website-monitor-redis-commander
-    restart: unless-stopped
-    
-    environment:
-      - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD}
-      - HTTP_USER=${REDIS_ADMIN_USER:-admin}
-      - HTTP_PASSWORD=${REDIS_ADMIN_PASSWORD:-admin123}
-    
-    ports:
-      - "8081:8081"
-    
-    depends_on:
-      redis:
-        condition: service_healthy
-    
-    networks:
-      - monitor_network
-    
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-          cpus: '0.25'
-
-# 数据卷配置
-volumes:
-  mysql_data:
-    driver: local
-  redis_data:
-    driver: local
-  backend_data:
-    driver: local
-
-# 网络配置
+# 网络配置 (内部网络，不对外暴露)
 networks:
-  monitor_network:
+  backend_network:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
+    internal: false  # 允许外部访问，但只通过指定端口
