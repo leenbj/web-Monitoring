@@ -1,0 +1,185 @@
+# 网址监控系统 - 生产环境Docker Compose配置
+# 前后端分离部署方案
+
+version: '3.8'
+
+services:
+  # 后端服务
+  backend:
+    image: ghcr.io/yourusername/website-monitor/backend:latest
+    container_name: website-monitor-backend
+    restart: unless-stopped
+    
+    environment:
+      - DATABASE_URL=mysql://monitor_user:${DB_PASSWORD}@mysql:3306/website_monitor
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - MAIL_SERVER=${MAIL_SERVER}
+      - MAIL_PORT=${MAIL_PORT}
+      - MAIL_USE_TLS=${MAIL_USE_TLS}
+      - MAIL_USERNAME=${MAIL_USERNAME}
+      - MAIL_PASSWORD=${MAIL_PASSWORD}
+      - FLASK_ENV=production
+      - LOG_LEVEL=INFO
+      - TZ=Asia/Shanghai
+    
+    volumes:
+      - backend_data:/app/database
+      - backend_logs:/app/backend/logs
+      - backend_uploads:/app/backend/uploads
+      - backend_downloads:/app/backend/downloads
+    
+    depends_on:
+      - mysql
+      - redis
+    
+    networks:
+      - backend_network
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+  
+  # MySQL数据库
+  mysql:
+    image: mysql:8.0
+    container_name: website-monitor-mysql
+    restart: unless-stopped
+    
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+      - MYSQL_DATABASE=website_monitor
+      - MYSQL_USER=monitor_user
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+      - TZ=Asia/Shanghai
+    
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d
+      - ./mysql/conf:/etc/mysql/conf.d
+    
+    networks:
+      - backend_network
+    
+    command: --default-authentication-plugin=mysql_native_password
+    
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+  
+  # Redis缓存
+  redis:
+    image: redis:7-alpine
+    container_name: website-monitor-redis
+    restart: unless-stopped
+    
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    
+    volumes:
+      - redis_data:/data
+    
+    networks:
+      - backend_network
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.25'
+        reservations:
+          memory: 64M
+          cpus: '0.1'
+  
+  # Nginx反向代理（可选，如果不使用外部Nginx）
+  nginx:
+    image: nginx:alpine
+    container_name: website-monitor-nginx
+    restart: unless-stopped
+    
+    ports:
+      - "80:80"
+      - "443:443"
+    
+    volumes:
+      - ./deployment/nginx/website-monitor.conf:/etc/nginx/conf.d/default.conf
+      - ./frontend/dist:/var/www/website-monitor/dist
+      - ./ssl:/etc/ssl/certs
+      - nginx_logs:/var/log/nginx
+    
+    depends_on:
+      - backend
+    
+    networks:
+      - backend_network
+      - frontend_network
+    
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.25'
+        reservations:
+          memory: 64M
+          cpus: '0.1'
+
+# 数据卷配置
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+  backend_data:
+    driver: local
+  backend_logs:
+    driver: local
+  backend_uploads:
+    driver: local
+  backend_downloads:
+    driver: local
+  nginx_logs:
+    driver: local
+
+# 网络配置
+networks:
+  backend_network:
+    driver: bridge
+    internal: true
+  frontend_network:
+    driver: bridge

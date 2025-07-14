@@ -1,14 +1,33 @@
-# 网址监控系统 - Docker Hub 自动构建版本
-# 支持多架构构建 (linux/amd64, linux/arm64)
+# 网址监控系统 - 后端服务
+# 多阶段构建，优化镜像大小
 
-FROM python:3.11-slim-bullseye
+FROM python:3.11-slim as builder
 
 # 设置构建参数
-ARG BUILDPLATFORM
-ARG TARGETPLATFORM
 ARG BUILD_DATE
 ARG VCS_REF
 ARG VERSION
+
+# 安装构建依赖
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    make \
+    pkg-config \
+    default-libmysqlclient-dev \
+    libffi-dev \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# 设置工作目录
+WORKDIR /app
+
+# 复制并安装Python依赖
+COPY requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# 生产镜像
+FROM python:3.11-slim
 
 # 设置标签
 LABEL maintainer="网址监控系统 <support@example.com>" \
@@ -18,8 +37,6 @@ LABEL maintainer="网址监控系统 <support@example.com>" \
       org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.source="https://github.com/yourusername/web-monitor" \
-      org.opencontainers.image.url="https://github.com/yourusername/web-monitor" \
-      org.opencontainers.image.documentation="https://github.com/yourusername/web-monitor/blob/main/README.md" \
       org.opencontainers.image.licenses="MIT"
 
 # 设置工作目录
@@ -36,68 +53,22 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     FLASK_ENV=production \
     FLASK_APP=run_backend.py
 
-# 更新系统并安装必要的系统依赖
+# 安装运行时依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    # 编译工具
-    gcc \
-    g++ \
-    make \
-    pkg-config \
-    # 网络工具
     curl \
-    wget \
-    netcat \
-    # MySQL客户端和开发库
     default-mysql-client \
-    default-libmysqlclient-dev \
-    # 其他必要库
-    libffi-dev \
-    libssl-dev \
-    libxml2-dev \
-    libxslt1-dev \
-    libjpeg-dev \
-    libpng-dev \
-    zlib1g-dev \
-    # 系统工具
     tzdata \
     ca-certificates \
-    procps \
     && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
     && echo $TZ > /etc/timezone \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+    && rm -rf /var/lib/apt/lists/*
 
-# 升级pip和安装基础Python包
-RUN pip install --upgrade pip setuptools wheel
+# 复制Python依赖
+COPY --from=builder /root/.local /root/.local
 
-# 复制requirements文件
-COPY requirements.txt .
-
-# 安装Python依赖 - 优化的分步安装
-RUN pip install --no-cache-dir --timeout=300 \
-    # 先安装基础依赖
-    wheel setuptools \
-    # 数据库相关
-    && pip install --no-cache-dir --timeout=300 \
-    PyMySQL==1.1.0 \
-    SQLAlchemy>=2.0.30 \
-    # Flask相关
-    && pip install --no-cache-dir --timeout=300 \
-    Flask==2.3.3 \
-    Flask-SQLAlchemy==3.0.5 \
-    Flask-CORS==4.0.0 \
-    Flask-Mail==0.9.1 \
-    flask-jwt-extended==4.5.3 \
-    flask-limiter==3.5.0 \
-    # 其他核心依赖
-    && pip install --no-cache-dir --timeout=300 \
-    requests==2.31.0 \
-    redis==5.0.1 \
-    APScheduler==3.10.4 \
-    python-dotenv==1.0.0 \
-    # 剩余依赖
-    && pip install --no-cache-dir --timeout=300 -r requirements.txt \
-    && pip cache purge
+# 确保python包在PATH中
+ENV PATH=/root/.local/bin:$PATH
 
 # 创建应用用户（安全最佳实践）
 RUN groupadd -r appuser && useradd -r -g appuser appuser

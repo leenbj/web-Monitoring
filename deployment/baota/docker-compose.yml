@@ -1,0 +1,229 @@
+# 网址监控系统 - 宝塔面板Docker Compose配置
+# 适用于宝塔面板环境的Docker容器编排
+
+version: '3.8'
+
+services:
+  # 后端服务 - 使用Docker Hub镜像
+  backend:
+    image: ${DOCKERHUB_USERNAME}/website-monitor-backend:latest
+    container_name: website-monitor-backend
+    restart: unless-stopped
+    
+    environment:
+      # 数据库配置
+      - DATABASE_URL=mysql://${DB_USER}:${DB_PASSWORD}@mysql:3306/${DB_NAME}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      
+      # 应用安全配置
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      
+      # 邮件配置
+      - MAIL_SERVER=${MAIL_SERVER}
+      - MAIL_PORT=${MAIL_PORT}
+      - MAIL_USE_TLS=${MAIL_USE_TLS}
+      - MAIL_USERNAME=${MAIL_USERNAME}
+      - MAIL_PASSWORD=${MAIL_PASSWORD}
+      
+      # 运行环境配置
+      - FLASK_ENV=production
+      - LOG_LEVEL=INFO
+      - TZ=Asia/Shanghai
+      - PYTHONUNBUFFERED=1
+    
+    ports:
+      - "5000:5000"
+    
+    volumes:
+      # 数据持久化
+      - ./data/backend:/app/database
+      - ./logs/backend:/app/backend/logs
+      - ./uploads:/app/backend/uploads
+      - ./downloads:/app/backend/downloads
+      - ./user_files:/app/backend/user_files
+    
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    
+    networks:
+      - monitor_network
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+  
+  # MySQL数据库
+  mysql:
+    image: mysql:8.0
+    container_name: website-monitor-mysql
+    restart: unless-stopped
+    
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${DB_NAME}
+      - MYSQL_USER=${DB_USER}
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+      - TZ=Asia/Shanghai
+    
+    ports:
+      - "3306:3306"
+    
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d
+      - ./mysql/conf:/etc/mysql/conf.d
+      - ./backups:/backups
+    
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --max_connections=200
+      --innodb_buffer_pool_size=256M
+    
+    networks:
+      - monitor_network
+    
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${DB_USER}", "-p${DB_PASSWORD}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+  
+  # Redis缓存
+  redis:
+    image: redis:7-alpine
+    container_name: website-monitor-redis
+    restart: unless-stopped
+    
+    command: >
+      redis-server 
+      --requirepass ${REDIS_PASSWORD}
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    
+    ports:
+      - "6379:6379"
+    
+    volumes:
+      - ./data/redis:/data
+      - ./redis/conf:/usr/local/etc/redis
+    
+    networks:
+      - monitor_network
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "auth", "${REDIS_PASSWORD}", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.25'
+
+  # 可选：PhpMyAdmin数据库管理工具
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: website-monitor-phpmyadmin
+    restart: unless-stopped
+    
+    environment:
+      - PMA_HOST=mysql
+      - PMA_PORT=3306
+      - PMA_USER=${DB_USER}
+      - PMA_PASSWORD=${DB_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+      - UPLOAD_LIMIT=100M
+    
+    ports:
+      - "8080:80"
+    
+    depends_on:
+      mysql:
+        condition: service_healthy
+    
+    networks:
+      - monitor_network
+    
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+
+  # 可选：Redis管理工具
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: website-monitor-redis-commander
+    restart: unless-stopped
+    
+    environment:
+      - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD}
+      - HTTP_USER=${REDIS_ADMIN_USER:-admin}
+      - HTTP_PASSWORD=${REDIS_ADMIN_PASSWORD:-admin123}
+    
+    ports:
+      - "8081:8081"
+    
+    depends_on:
+      redis:
+        condition: service_healthy
+    
+    networks:
+      - monitor_network
+    
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.25'
+
+# 数据卷配置
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+  backend_data:
+    driver: local
+
+# 网络配置
+networks:
+  monitor_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
