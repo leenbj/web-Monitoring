@@ -60,22 +60,11 @@ jobs:
         cache-to: type=gha,mode=max
         platforms: linux/amd64,linux/arm64
         
-    - name: Update Docker Hub description
-      if: github.ref == 'refs/heads/main'
-      uses: peter-evans/dockerhub-description@v3
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
-        repository: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_HUB_REPO }}
-        short-description: "网址监控系统后端服务 - Website Monitor Backend Service"
-        readme-filepath: ./README.md
-        
-    - name: Notify deployment webhook (optional)
+    - name: Image build summary
       if: github.ref == 'refs/heads/main'
       run: |
-        if [ ! -z "${{ secrets.DEPLOY_WEBHOOK }}" ]; then
-          curl -X POST \
-            -H "Content-Type: application/json" \
-            -d '{"image":"${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_HUB_REPO }}:latest","tag":"latest","commit":"${{ github.sha }}"}' \
-            ${{ secrets.DEPLOY_WEBHOOK }}
-        fi
+        echo "✅ Docker镜像构建成功!"
+        echo "📦 镜像名称: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_HUB_REPO }}:latest"
+        echo "🏷️ 标签: ${{ steps.meta.outputs.tags }}"
+        echo "📅 构建时间: $(date)"
+        echo "🔗 Docker Hub: https://hub.docker.com/r/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_HUB_REPO }}"
