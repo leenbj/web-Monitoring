@@ -1,29 +1,65 @@
-# Git
-.git
-.gitignore
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# Documentation
-*.md
-README*
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
 
-# Logs
-logs/
-*.log
-
-# Database files
+# Database files (不应包含在镜像中)
+database/
 *.db
 *.sqlite
 *.sqlite3
 
-# Cache
-__pycache__/
-*.pyc
-*.pyo
+# Logs
+logs/
+*.log
+backend.log
+
+# Node.js
 node_modules/
-.npm/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
 
 # OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
 # IDE
@@ -32,33 +68,42 @@ Thumbs.db
 *.swp
 *.swo
 
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Documentation
+README.md
+*.md
+docs/
+
+# Development files
+tests/
+test/
+.pytest_cache/
+.coverage
+.tox/
+
+# Application specific files that should not be in image
+uploads/
+downloads/
+user_files/
+mysql/
+redis/
+deployment/
+
+# Configuration examples
+.env.example
+.env.*
+
 # Temporary files
+tmp/
+temp/
 *.tmp
 *.temp
-.cache/
-
-# Build artifacts
-dist/
-build/
-
-# Environment files
-.env*
-!.env.example
-
-# Backup files
-*.bak
-*.backup
-
-# Compressed files
-*.tar.gz
-*.zip
-*.rar
-
-# Testing
-test/
-tests/
-*.test.js
-
-# Docker files (except the main one)
-docker-compose*.yml
-Dockerfile.*

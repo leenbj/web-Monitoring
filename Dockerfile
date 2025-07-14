@@ -1,12 +1,7 @@
 # 网址监控系统 - 后端服务
 # 多阶段构建，优化镜像大小
 
-FROM python:3.11-slim as builder
-
-# 设置构建参数
-ARG BUILD_DATE
-ARG VCS_REF
-ARG VERSION
+FROM python:3.11-slim AS builder
 
 # 安装构建依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -29,13 +24,18 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 # 生产镜像
 FROM python:3.11-slim
 
+# 设置构建参数
+ARG BUILD_DATE
+ARG VCS_REF  
+ARG VERSION
+
 # 设置标签
 LABEL maintainer="网址监控系统 <support@example.com>" \
       org.opencontainers.image.title="网址监控系统后端" \
       org.opencontainers.image.description="一个功能完整的网址监控系统后端服务" \
-      org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.created="${BUILD_DATE}" \
-      org.opencontainers.image.revision="${VCS_REF}" \
+      org.opencontainers.image.version="${VERSION:-latest}" \
+      org.opencontainers.image.created="${BUILD_DATE:-unknown}" \
+      org.opencontainers.image.revision="${VCS_REF:-unknown}" \
       org.opencontainers.image.source="https://github.com/yourusername/web-monitor" \
       org.opencontainers.image.licenses="MIT"
 
@@ -83,7 +83,6 @@ RUN mkdir -p /app/backend/logs \
 
 # 复制应用代码
 COPY backend/ ./backend/
-COPY database/ ./database/
 COPY init_database.py .
 COPY run_backend.py .
 
